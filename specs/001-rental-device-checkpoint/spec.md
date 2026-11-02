@@ -101,5 +101,5 @@
 - Q: 시점 상태(CAPTURED·GRADED·SEALED)를 rental-server가 어떻게 아나? → A: 이벤트 스키마는 그대로 두고 rental-server가 `trace.events`에 자기 큐 `trace.rental.checkpoints`를 붙여 `trace.capture.uploaded`·`trace.checkpoint.graded`·`trace.record.sealed`를 받는다. 소비자만 늘고 계약(스키마·라우팅 키)은 바뀌지 않는다. 설계서 이벤트 표의 소비 칸에 rental-server를 더한다.
 - Q: RCV·RET 시작 조건은? → A: 계약 예시대로 앞 시점이 SEALED여야 한다.
 - Q: RETURNED는 언제? → A: RET 시점이 봉인될 때(이벤트). close는 RETURNED만 CLOSED로 바꾼다. RETURNED는 OPEN이 아니므로 그 기기로 새 렌탈을 만들 수 있다.
-- Q: 폐기 기기를 되살릴 수 있나? → A: 된다. ACTIVE로 바꾸면 retiredAt을 지운다(전용 오류 code가 계약에 없고 DB CHECK와 맞음).
+- Q: 폐기 기기를 되살릴 수 있나? → A: ~~된다. ACTIVE로 바꾸면 retiredAt을 지운다~~ (11/2 결정으로 바뀜) 수리 중(MAINTENANCE)으로만 되살리고 그때 retiredAt을 지운다. RETIRED → ACTIVE는 409 DEVICE_STATUS_TRANSITION_INVALID(codes.yaml 0.6.0).
 - Q: 커서 형식은? → A: (createdAt, publicId) 내림차순 키셋을 base64url로(내부 id는 싣지 않음). 형식은 서버 내부이고 클라이언트는 불투명 문자열로 쓴다.

@@ -18,7 +18,7 @@
 렌탈:  OPEN --(RET 시점 SEALED 이벤트)--> RETURNED --(POST /close)--> CLOSED
 시점:  OPEN --capture.uploaded--> CAPTURED --checkpoint.graded--> GRADED --record.sealed--> SEALED (앞으로만, 건너뛰기 허용)
 시작:  OUT(시점 없음) → RCV(OUT SEALED) → RET(RCV SEALED), 렌탈 OPEN일 때만
-기기:  ACTIVE ⇄ MAINTENANCE ⇄ RETIRED (OPEN 렌탈 있으면 MAINTENANCE·RETIRED 불가, RETIRED면 retired_at)
+기기:  ACTIVE ⇄ MAINTENANCE ⇄ RETIRED, ACTIVE → RETIRED (RETIRED → ACTIVE는 409 DEVICE_STATUS_TRANSITION_INVALID, OPEN 렌탈 있으면 MAINTENANCE·RETIRED 불가, RETIRED면 retired_at)
 ```
 
 ## API ↔ 테이블
