@@ -21,8 +21,13 @@ import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.core.AmqpAdmin;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -72,6 +77,9 @@ class RentalIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private AmqpAdmin amqpAdmin;
+
     @Test
     @DisplayName("같은 시리얼로 진행 중인 렌탈이 2건 생기지 않는다(동시 요청 10개 중 1개만 201)")
     void onlyOneOpenRentalUnderConcurrency() throws Exception {
@@ -110,10 +118,29 @@ class RentalIntegrationTest {
         upsertModel("FLOW-1");
         String deviceId = registerDevice("SER-FLOW-1", "FLOW-1");
         String rentalId = openRental(deviceId);
+        Queue started = new Queue("test.checkpoint.started", false, false, false);
+        amqpAdmin.declareQueue(started);
+        amqpAdmin.purgeQueue(started.getName(), false);
+        amqpAdmin.declareBinding(BindingBuilder.bind(started).to(new TopicExchange(AmqpConfig.EXCHANGE))
+                .with("trace.checkpoint.started"));
 
         startCheckpoint(rentalId, "RCV").andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CHECKPOINT_ORDER_VIOLATION"));
         String out = checkpointId(startCheckpoint(rentalId, "OUT").andExpect(status().isCreated()).andReturn());
+        // 1.1: 시점을 시작하면 기종·시리얼을 실은 trace.checkpoint.started가 한 번 나간다(거절된 RCV는 안 나감)
+        Message startedMessage = rabbit.receive(started.getName(), 10_000);
+        assertThat(startedMessage).isNotNull();
+        JsonNode startedEvent = json.readTree(startedMessage.getBody());
+        assertThat(startedMessage.getMessageProperties().getMessageId()).isEqualTo(startedEvent.get("eventId").asText());
+        assertThat(startedEvent.get("schemaVersion").asText()).isEqualTo("1.1");
+        assertThat(startedEvent.get("rentalId").asText()).isEqualTo(rentalId);
+        assertThat(startedEvent.get("checkpointId").asText()).isEqualTo(out);
+        assertThat(startedEvent.get("checkpointType").asText()).isEqualTo("OUT");
+        assertThat(startedEvent.get("deviceId").asText()).isEqualTo(deviceId);
+        assertThat(startedEvent.get("serial").asText()).isEqualTo("SER-FLOW-1");
+        assertThat(startedEvent.get("modelCode").asText()).isEqualTo("FLOW-1");
+        assertThat(startedEvent.get("modelName").asText()).isNotBlank();
+        assertThat(rabbit.receive(started.getName(), 500)).isNull();
         startCheckpoint(rentalId, "RCV").andExpect(status().isConflict());
 
         publish(AmqpConfig.CAPTURE_UPLOADED, rentalId, out);

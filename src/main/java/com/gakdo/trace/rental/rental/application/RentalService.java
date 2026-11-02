@@ -11,6 +11,8 @@ import com.gakdo.trace.rental.common.domain.DomainException;
 import com.gakdo.trace.rental.common.domain.ErrorCode;
 import com.gakdo.trace.rental.common.infra.Cursor;
 import com.gakdo.trace.rental.common.infra.CurrentUser;
+import com.gakdo.trace.rental.common.infra.PublicIds;
+import com.gakdo.trace.rental.common.infra.Times;
 import com.gakdo.trace.rental.device.domain.Device;
 import com.gakdo.trace.rental.device.infra.DeviceRepository;
 import com.gakdo.trace.rental.rental.domain.Checkpoint;
@@ -30,11 +32,14 @@ public class RentalService {
     private final RentalRepository rentals;
     private final CheckpointRepository checkpoints;
     private final DeviceRepository devices;
+    private final CheckpointEventPublisher events;
 
-    public RentalService(RentalRepository rentals, CheckpointRepository checkpoints, DeviceRepository devices) {
+    public RentalService(RentalRepository rentals, CheckpointRepository checkpoints, DeviceRepository devices,
+            CheckpointEventPublisher events) {
         this.rentals = rentals;
         this.checkpoints = checkpoints;
         this.devices = devices;
+        this.events = events;
     }
 
     /**
@@ -78,11 +83,17 @@ public class RentalService {
     public Checkpoint startCheckpoint(String rentalId, CheckpointType type) {
         Rental rental = rentals.lockByPublicId(rentalId).orElseThrow(() -> DomainException.notFound("렌탈"));
         Checkpoint checkpoint = rental.startCheckpoint(type);
+        Checkpoint saved;
         try {
-            return checkpoints.saveAndFlush(checkpoint);
+            saved = checkpoints.saveAndFlush(checkpoint);
         } catch (DataIntegrityViolationException e) {
             throw new DomainException(ErrorCode.CHECKPOINT_ORDER_VIOLATION, type + " 시점이 이미 있습니다.");
         }
+        Device device = rental.getDevice();
+        events.publishStarted(new CheckpointStartedEvent(CheckpointStartedEvent.SCHEMA_VERSION, PublicIds.next(),
+                Times.now(), rental.getPublicId(), saved.getPublicId(), type.name(), device.getPublicId(),
+                device.getSerial(), device.getModel().getModelCode(), device.getModel().getName()));
+        return saved;
     }
 
     @Transactional
