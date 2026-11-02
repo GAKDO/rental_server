@@ -7,5 +7,6 @@ main에 버전이 적힌 CHANGELOG가 올라가면 release.yml이 태그와 GitH
 ## [Unreleased]
 
 ### 추가
+- 기종 시드 V2: MBA13-M2(MacBook Air M2, 치수 304.1×215.0, 두께 7.0/4.0 mm). 이미 있으면 건너뜀
 - RE1 후속: 폐기 기기는 수리 중으로만 되돌린다(RETIRED → ACTIVE는 409 DEVICE_STATUS_TRANSITION_INVALID, codes.yaml 0.6.0)
 - 블로그(AIGJ-01-002-blog/devlog) CI/CD를 옮겨 초기 구성

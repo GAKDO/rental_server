@@ -33,3 +33,4 @@
 - [x] T018 ErrorCode에 DEVICE_STATUS_TRANSITION_INVALID(codes.yaml 0.6.0)
 - [x] T019 Device 상태 전이: RETIRED → ACTIVE 409, RETIRED → MAINTENANCE 허용·retiredAt 비움
 - [x] T020 단위·WebMvc·통합 테스트 두 경우
+- [x] T021 기종 시드 V2__seed_device_models.sql(MBA13-M2, ON CONFLICT DO NOTHING) + 통합 테스트(조회·재실행 1건). 그램은 11/4 실측 뒤 V3
