@@ -203,6 +203,27 @@ class RentalIntegrationTest {
     }
 
     @Test
+    @DisplayName("기종 시드 V2: MBA13-M2가 치수 4개와 함께 조회되고, 시드를 다시 돌려도 한 건이다")
+    void seedDeviceModel() throws Exception {
+        mvc.perform(get("/api/v1/device-models/MBA13-M2").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("MacBook Air (M2, 2022)"))
+                .andExpect(jsonPath("$.manufacturer").value("Apple"))
+                .andExpect(jsonPath("$.formFactor").value("CLAMSHELL"))
+                .andExpect(jsonPath("$.spec.cpu").value("Apple M2"))
+                .andExpect(jsonPath("$.dimensions.widthMm").value(304.1))
+                .andExpect(jsonPath("$.dimensions.depthMm").value(215.0))
+                .andExpect(jsonPath("$.dimensions.baseHMm").value(7.0))
+                .andExpect(jsonPath("$.dimensions.lidHMm").value(4.0));
+
+        String seed = new String(getClass().getResourceAsStream("/db/migration/V2__seed_device_models.sql")
+                .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        jdbc.execute(seed);
+        assertThat(jdbc.queryForObject("select count(*) from rental.device_model where model_code = 'MBA13-M2'",
+                Integer.class)).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("시리얼 중복은 409, 없는 기종은 404, 모델명으로 3D 트윈 치수를 조회한다")
     void deviceAndModelRules() throws Exception {
         upsertModel("DIM-1");
