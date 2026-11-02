@@ -7,4 +7,5 @@ main에 버전이 적힌 CHANGELOG가 올라가면 release.yml이 태그와 GitH
 ## [Unreleased]
 
 ### 추가
+- RE1 후속: 폐기 기기는 수리 중으로만 되돌린다(RETIRED → ACTIVE는 409 DEVICE_STATUS_TRANSITION_INVALID, codes.yaml 0.6.0)
 - 블로그(AIGJ-01-002-blog/devlog) CI/CD를 옮겨 초기 구성

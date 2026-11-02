@@ -4,7 +4,7 @@
 **작성**: 2026-11-02
 **상태**: 확정(clarify 반영)
 **요구사항**: FR-RNT-01, FR-RNT-02, FR-RNT-03, FR-RNT-05 (목록 범위로 FR-USR-03 일부)
-**계약**: GAKDO/contracts develop `openapi/rental-server.yaml` 0.1.0(PR #6 PublicId 반영), `codes.yaml` 0.4.0, `events/` 1.0
+**계약**: GAKDO/contracts develop `openapi/rental-server.yaml` 0.1.0(PR #6 PublicId 반영), `codes.yaml` 0.4.0, `events/` 1.0. 후속(11/2): contracts PR #8(develop c0dfcba) — 기기 상태 전이 규칙, `codes.yaml` 0.6.0
 **입력(backlog.md)**: "관리자가 기종(제조사·형태·치수·기준 사양)과 기기(시리얼·상태)를 관리하고, 렌탈 건을 만들어 기기를 연결한다. 렌탈은 출고·수령·반납 세 시점을 순서대로 가진다(FR-RNT-01, 02, 03, 05). 수용 기준: 같은 시리얼로 진행 중인 렌탈이 2건 생기지 않는다. 출고 전에 수령 기록을 만들면 거부된다. 모델명으로 3D 트윈 치수를 조회한다. 수리 중·폐기 기기로 렌탈을 만들면 409이고 폐기해도 행은 남는다. 시리얼은 등록 뒤 바꿀 수 없고 변경자(updated_by)를 남긴다. 기기 목록은 기종·상태로 찾는다. 스키마는 design/ddl.md의 rental 절이다."
 
 ## 사용자 시나리오와 테스트
@@ -33,6 +33,8 @@
 3. **주어진** MAINTENANCE 또는 RETIRED 기기 **하면** 렌탈 생성 **그러면** 409 DEVICE_NOT_ACTIVE.
 4. **주어진** 기기 **하면** PATCH status=RETIRED **그러면** 200, retiredAt이 채워지고 행은 남아 목록·조회에 계속 나온다(폐기해도 행은 남는다).
 5. **주어진** OPEN 렌탈이 있는 기기 **하면** PATCH status=MAINTENANCE·RETIRED **그러면** 409 DEVICE_HAS_OPEN_RENTAL.
+6. **주어진** RETIRED 기기 **하면** PATCH status=ACTIVE **그러면** 409 DEVICE_STATUS_TRANSITION_INVALID, 상태·retiredAt은 그대로다. (11/2 결정)
+7. **주어진** RETIRED 기기 **하면** PATCH status=MAINTENANCE **그러면** 200, retiredAt이 비워진다. 점검 뒤 MAINTENANCE → ACTIVE로 다시 렌탈할 수 있다. (11/2 결정)
 
 ### 이야기 3 — 세 시점 순서 (P1)
 
@@ -59,14 +61,14 @@
 - CLOSED·RETURNED 렌탈에 시점을 시작하면 409 CHECKPOINT_ORDER_VIOLATION.
 - 모르는 rentalId·checkpointId 이벤트는 경고 로그 후 ack(다시 와도 처리할 대상이 없음).
 - 형식이 깨진 이벤트는 재시도하지 않고 `trace.dlx`로 보낸다.
-- RETIRED → ACTIVE로 되돌리면 retiredAt을 지운다(관리자 실수 복구, DB CHECK와 일치).
+- ~~RETIRED → ACTIVE로 되돌리면 retiredAt을 지운다~~ → 11/2 결정으로 바뀜: 폐기 기기는 MAINTENANCE로만 되돌리고 그때 retiredAt을 지운다(DB CHECK와 일치). RETIRED → ACTIVE는 409 DEVICE_STATUS_TRANSITION_INVALID.
 - 요청 본문의 모르는 필드는 400(계약의 `additionalProperties: false`).
 
 ## 요구사항
 
 - **FR-001** 기종을 modelCode로 등록·수정(PUT 업서트), 목록(전부), 단건(치수 포함) 조회한다. (FR-RNT-03)
 - **FR-002** 기기를 시리얼·기종·OS로 등록한다. 상태는 ACTIVE로 시작. 시리얼 중복 409, 기종 없음 404. (FR-RNT-01)
-- **FR-003** 기기는 색상·자산번호·OS·상태만 바꾼다. serial·modelCode를 보내면 400. RETIRED면 retiredAt을 채운다. OPEN 렌탈이 있는데 MAINTENANCE·RETIRED로 바꾸면 409. (FR-RNT-05)
+- **FR-003** 기기는 색상·자산번호·OS·상태만 바꾼다. serial·modelCode를 보내면 400. RETIRED면 retiredAt을 채운다. OPEN 렌탈이 있는데 MAINTENANCE·RETIRED로 바꾸면 409. RETIRED → ACTIVE는 409 DEVICE_STATUS_TRANSITION_INVALID, RETIRED → MAINTENANCE는 retiredAt을 비운다. (FR-RNT-05)
 - **FR-004** 기기를 지우는 API는 없다. 폐기해도 행이 남는다. (FR-RNT-05)
 - **FR-005** 기종·기기를 바꾼 사람(JWT sub)을 updated_by에 남긴다.
 - **FR-006** 기기 목록은 modelCode·status·q(시리얼·자산번호 일부, 대소문자 무시)로 거르고 커서로 나눈다. (FR-RNT-05)

@@ -28,3 +28,8 @@
 ## 5단계 통합
 - [x] T016 Testcontainers(PostgreSQL·RabbitMQ) 통합 테스트: Flyway·validate, 동시 렌탈 생성 1건, 폐기 후 행 유지, 이벤트로 SEALED → RETURNED → close, 커서 페이지
 - [x] T017 `./mvnw verify` 통과(JaCoCo 40%)
+
+## 후속(11/2, contracts PR #8)
+- [x] T018 ErrorCode에 DEVICE_STATUS_TRANSITION_INVALID(codes.yaml 0.6.0)
+- [x] T019 Device 상태 전이: RETIRED → ACTIVE 409, RETIRED → MAINTENANCE 허용·retiredAt 비움
+- [x] T020 단위·WebMvc·통합 테스트 두 경우
