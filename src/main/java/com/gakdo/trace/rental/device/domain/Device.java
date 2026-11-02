@@ -2,6 +2,8 @@ package com.gakdo.trace.rental.device.domain;
 
 import java.time.OffsetDateTime;
 
+import com.gakdo.trace.rental.common.domain.DomainException;
+import com.gakdo.trace.rental.common.domain.ErrorCode;
 import com.gakdo.trace.rental.common.infra.Times;
 import com.gakdo.trace.rental.common.infra.PublicIds;
 import com.gakdo.trace.rental.devicemodel.domain.DeviceModel;
@@ -21,6 +23,7 @@ import jakarta.persistence.Table;
 /**
  * 기기(rental.device). 시리얼은 기기 신원이라 setter가 없다. 폐기해도 행을 지우지 않는다(FR-RNT-05).
  * 상태 RETIRED ⇔ retiredAt 있음 (DB CHECK와 같은 규칙).
+ * 폐기 기기는 수리 중(MAINTENANCE)으로만 되돌린다. 점검 없이 바로 렌탈로 나가지 않게 한다(contracts 0.6.0, 11/2 결정).
  */
 @Entity
 @Table(name = "device")
@@ -89,8 +92,12 @@ public class Device {
 
     /**
      * 색상·자산번호·OS·상태를 바꾼다. 진행 중 렌탈 검사는 호출하는 쪽(서비스)이 잠금 안에서 먼저 한다.
+     * 상태 전이가 규칙에 어긋나면 다른 값도 바꾸지 않고 409로 끝낸다.
      */
     public void change(DeviceChanges changes, String actor) {
+        if (changes.status() != null) {
+            checkTransition(changes.status());
+        }
         if (changes.color() != null) {
             this.color = changes.color().orElse(null);
         }
@@ -105,6 +112,14 @@ public class Device {
         }
         this.updatedBy = actor;
         this.updatedAt = Times.now();
+    }
+
+    /** RETIRED → ACTIVE만 막는다. 나머지 전이(같은 상태 포함)는 허용한다. */
+    private void checkTransition(DeviceStatus next) {
+        if (status == DeviceStatus.RETIRED && next == DeviceStatus.ACTIVE) {
+            throw new DomainException(ErrorCode.DEVICE_STATUS_TRANSITION_INVALID,
+                    "수리 중으로 바꿔 점검한 뒤 사용 가능으로 바꿔 주세요.");
+        }
     }
 
     private void changeStatus(DeviceStatus next) {

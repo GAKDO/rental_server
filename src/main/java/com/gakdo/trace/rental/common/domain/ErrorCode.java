@@ -18,7 +18,8 @@ public enum ErrorCode {
     CHECKPOINT_ORDER_VIOLATION(HttpStatus.CONFLICT, "시점 순서가 맞지 않습니다"),
     RENTAL_NOT_CLOSABLE(HttpStatus.CONFLICT, "아직 종료할 수 없는 렌탈입니다"),
     DEVICE_SERIAL_EXISTS(HttpStatus.CONFLICT, "이미 등록된 시리얼입니다"),
-    DEVICE_HAS_OPEN_RENTAL(HttpStatus.CONFLICT, "진행 중인 렌탈이 있는 기기입니다");
+    DEVICE_HAS_OPEN_RENTAL(HttpStatus.CONFLICT, "진행 중인 렌탈이 있는 기기입니다"),
+    DEVICE_STATUS_TRANSITION_INVALID(HttpStatus.CONFLICT, "폐기한 기기는 수리 중으로만 되돌릴 수 있습니다");
 
     private final HttpStatus status;
     private final String title;

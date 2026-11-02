@@ -176,6 +176,33 @@ class RentalIntegrationTest {
     }
 
     @Test
+    @DisplayName("폐기 기기는 사용 가능으로 바로 못 바꾸고(409), 수리 중으로는 되돌리며 retiredAt이 비워진다")
+    void retiredDeviceTransitions() throws Exception {
+        upsertModel("RET-2");
+        String deviceId = registerDevice("SER-RET-2", "RET-2");
+        mvc.perform(patch("/api/v1/devices/" + deviceId).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"RETIRED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(patch("/api/v1/devices/" + deviceId).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DEVICE_STATUS_TRANSITION_INVALID"));
+        assertThat(jdbc.queryForObject("select status from rental.device where public_id = ?", String.class,
+                deviceId)).isEqualTo("RETIRED");
+
+        mvc.perform(patch("/api/v1/devices/" + deviceId).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"MAINTENANCE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("MAINTENANCE"))
+                .andExpect(jsonPath("$.retiredAt").isEmpty());
+        mvc.perform(patch("/api/v1/devices/" + deviceId).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
     @DisplayName("시리얼 중복은 409, 없는 기종은 404, 모델명으로 3D 트윈 치수를 조회한다")
     void deviceAndModelRules() throws Exception {
         upsertModel("DIM-1");

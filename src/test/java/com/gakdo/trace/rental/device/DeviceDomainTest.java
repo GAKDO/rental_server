@@ -36,8 +36,8 @@ class DeviceDomainTest {
     }
 
     @Test
-    @DisplayName("폐기하면 retiredAt이 채워지고, 되돌리면 지워진다")
-    void retireAndRestore() {
+    @DisplayName("폐기하면 retiredAt이 채워지고, 수리 중으로 되돌리면 retiredAt이 비워진다")
+    void retireAndRestoreToMaintenance() {
         Device device = Fixtures.device("C02EXAMPLE01");
         device.change(new DeviceChanges(null, null, null, DeviceStatus.RETIRED), "admin0000000000000002");
         assertThat(device.getStatus()).isEqualTo(DeviceStatus.RETIRED);
@@ -45,8 +45,30 @@ class DeviceDomainTest {
         assertThat(device.isRentable()).isFalse();
         assertThat(device.getUpdatedBy()).isEqualTo("admin0000000000000002");
 
-        device.change(new DeviceChanges(null, null, null, DeviceStatus.ACTIVE), "admin0000000000000002");
+        device.change(new DeviceChanges(null, null, null, DeviceStatus.MAINTENANCE), "admin0000000000000003");
+        assertThat(device.getStatus()).isEqualTo(DeviceStatus.MAINTENANCE);
         assertThat(device.getRetiredAt()).isNull();
+        assertThat(device.getUpdatedBy()).isEqualTo("admin0000000000000003");
+
+        device.change(new DeviceChanges(null, null, null, DeviceStatus.ACTIVE), null);
+        assertThat(device.isRentable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("폐기 기기를 사용 가능으로 바로 바꾸면 409 DEVICE_STATUS_TRANSITION_INVALID이고 아무것도 바뀌지 않는다")
+    void retiredToActiveRejected() {
+        Device device = Fixtures.device("C02EXAMPLE01");
+        device.change(new DeviceChanges(null, null, null, DeviceStatus.RETIRED), "admin0000000000000002");
+        var retiredAt = device.getRetiredAt();
+
+        assertThatThrownBy(() -> device.change(
+                new DeviceChanges(Optional.empty(), null, null, DeviceStatus.ACTIVE), "admin0000000000000003"))
+                .isInstanceOfSatisfying(DomainException.class,
+                        e -> assertThat(e.code()).isEqualTo(ErrorCode.DEVICE_STATUS_TRANSITION_INVALID));
+        assertThat(device.getStatus()).isEqualTo(DeviceStatus.RETIRED);
+        assertThat(device.getRetiredAt()).isEqualTo(retiredAt);
+        assertThat(device.getColor()).isNotNull();
+        assertThat(device.getUpdatedBy()).isEqualTo("admin0000000000000002");
     }
 
     @Test

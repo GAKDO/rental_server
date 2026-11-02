@@ -121,6 +121,19 @@ class DeviceApiTest extends WebTestBase {
     }
 
     @Test
+    @DisplayName("폐기 기기를 사용 가능으로 바로 바꾸면 409 DEVICE_STATUS_TRANSITION_INVALID(Problem Details)")
+    void patchRetiredToActive() throws Exception {
+        when(devices.change(eq("IPv6mcQOlTkKj6mOecAQt"), any(), eq(TestJwts.ADMIN_ID)))
+                .thenThrow(new DomainException(ErrorCode.DEVICE_STATUS_TRANSITION_INVALID, "수리 중을 거쳐야 함"));
+        mvc.perform(patch("/api/v1/devices/IPv6mcQOlTkKj6mOecAQt").with(admin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("DEVICE_STATUS_TRANSITION_INVALID"))
+                .andExpect(jsonPath("$.title").value("폐기한 기기는 수리 중으로만 되돌릴 수 있습니다"));
+    }
+
+    @Test
     @DisplayName("기기 목록은 기종·상태로 찾고 nextCursor를 돌려준다")
     void searchDevices() throws Exception {
         Device device = Fixtures.device("C02EXAMPLE01");
