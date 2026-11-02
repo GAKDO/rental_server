@@ -1,0 +1,27 @@
+package com.gakdo.trace.rental.rental.infra;
+
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+
+import com.gakdo.trace.rental.rental.domain.Rental;
+import com.gakdo.trace.rental.rental.domain.RentalStatus;
+
+import jakarta.persistence.LockModeType;
+
+public interface RentalRepository extends JpaRepository<Rental, Long>, JpaSpecificationExecutor<Rental> {
+
+    boolean existsByDevice_IdAndStatus(Long deviceId, RentalStatus status);
+
+    @EntityGraph(attributePaths = {"checkpoints", "device"})
+    Optional<Rental> findWithCheckpointsByPublicId(String publicId);
+
+    /** 시점 시작·종료가 겹치지 않게 렌탈 행을 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Rental r where r.publicId = :publicId")
+    Optional<Rental> lockByPublicId(String publicId);
+}

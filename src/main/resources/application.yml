@@ -9,9 +9,52 @@ spring:
   threads:
     virtual:
       enabled: true
+  # PostgreSQL: DB trace, 이 서버는 rental 스키마만 쓴다 (infra.env POSTGRES_*, trace-secrets DB_*)
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:trace}
+    username: ${DB_USERNAME:trace}
+    password: ${DB_PASSWORD:}
+  flyway:
+    schemas: rental
+    default-schema: rental
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # 스키마는 Flyway만 바꾼다
+    properties:
+      hibernate:
+        default_schema: rental
+        jdbc:
+          time_zone: UTC
+  # 계약의 additionalProperties: false — 모르는 필드(예: PATCH의 serial)는 400
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  # RabbitMQ: topic exchange trace.events (infra.env RABBITMQ_*, trace-secrets RABBITMQ_USERNAME·PASSWORD)
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        default-requeue-rejected: false   # 계속 실패하면 다시 넣지 않고 trace.dlx로
+        retry:
+          enabled: true
+          max-attempts: 3
+  # auth-server가 발급한 RS256 JWT를 JWKS로 검증한다
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWKS_URI:${AUTH_SERVER_URL:http://auth-server:8080}/.well-known/jwks.json}
 
 app:
   commit: ${APP_COMMIT:unknown}   # 이미지에 구운 커밋 SHA. /ping 응답에 실려 배포 확인에 쓴다
+  version: '@project.version@'
+  jwt:
+    issuer: trace
 
 management:
   endpoints:
