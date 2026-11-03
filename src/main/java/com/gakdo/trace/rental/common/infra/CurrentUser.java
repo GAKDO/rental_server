@@ -23,6 +23,11 @@ public record CurrentUser(String accountId, String role, Set<String> rentals) {
         return "ADMIN".equals(role);
     }
 
+    /** 부스 토큰(role BOOTH). 진행 중 렌탈 목록만 볼 수 있다. */
+    public boolean isBooth() {
+        return "BOOTH".equals(role);
+    }
+
     public boolean canSee(String rentalId) {
         return isAdmin() || rentals.contains(rentalId);
     }

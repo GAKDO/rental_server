@@ -1,6 +1,7 @@
 package com.gakdo.trace.rental;
 
 import static com.gakdo.trace.rental.support.TestJwts.admin;
+import static com.gakdo.trace.rental.support.TestJwts.booth;
 import static com.gakdo.trace.rental.support.TestJwts.customer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -138,6 +139,9 @@ class RentalIntegrationTest {
                 .andExpect(jsonPath("$.serial").value("SER-FLOW-1"));
         mvc.perform(get("/api/v1/rentals").with(admin()))
                 .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')].currentCheckpoint.type").value("OUT"));
+        // 부스 태블릿 기기 목록: 부스 토큰은 진행 중 렌탈을 rentals 클레임 없이 본다
+        mvc.perform(get("/api/v1/rentals").with(booth()))
+                .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')].currentCheckpoint.type").value("OUT"));
         assertThat(startedEvent.get("rentalId").asText()).isEqualTo(rentalId);
         assertThat(startedEvent.get("checkpointId").asText()).isEqualTo(out);
         assertThat(startedEvent.get("checkpointType").asText()).isEqualTo("OUT");
@@ -166,6 +170,9 @@ class RentalIntegrationTest {
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
                 mvc.perform(get("/api/v1/rentals/" + rentalId).with(admin()))
                         .andExpect(jsonPath("$.status").value("RETURNED")));
+        // 반납된 렌탈은 부스가 status를 바꿔 보내도 목록에 안 나온다(OPEN 고정)
+        mvc.perform(get("/api/v1/rentals?status=RETURNED").with(booth()))
+                .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')]").isEmpty());
 
         mvc.perform(get("/api/v1/rentals/" + rentalId).with(admin()))
                 .andExpect(jsonPath("$.checkpoints.length()").value(3))

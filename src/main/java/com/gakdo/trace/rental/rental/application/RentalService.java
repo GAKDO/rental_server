@@ -1,6 +1,7 @@
 package com.gakdo.trace.rental.rental.application;
 
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
@@ -70,8 +71,11 @@ public class RentalService {
 
     @Transactional(readOnly = true)
     public Page list(RentalStatus status, Cursor cursor, int limit, CurrentUser user) {
+        // 부스는 상태를 고를 수 없고 진행 중(OPEN) 렌탈 전체를 본다(부스 태블릿 기기 목록, contracts listRentals)
+        RentalStatus effective = user.isBooth() ? RentalStatus.OPEN : status;
+        Set<String> scope = user.isAdmin() || user.isBooth() ? null : user.rentals();
         List<Rental> rows = rentals.findBy(
-                RentalSpecs.search(status, user.isAdmin() ? null : user.rentals(), cursor),
+                RentalSpecs.search(effective, scope, cursor),
                 query -> query.sortBy(NEWEST_FIRST).limit(limit + 1).all());
         boolean more = rows.size() > limit;
         List<Rental> items = more ? rows.subList(0, limit) : rows;

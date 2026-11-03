@@ -1,6 +1,7 @@
 package com.gakdo.trace.rental.rental;
 
 import static com.gakdo.trace.rental.support.TestJwts.admin;
+import static com.gakdo.trace.rental.support.TestJwts.booth;
 import static com.gakdo.trace.rental.support.TestJwts.customer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -150,6 +151,25 @@ class RentalApiTest extends WebTestBase {
         ArgumentCaptor<CurrentUser> user = ArgumentCaptor.forClass(CurrentUser.class);
         verify(service).list(eq(RentalStatus.OPEN), isNull(), eq(20), user.capture());
         org.assertj.core.api.Assertions.assertThat(user.getValue().rentals()).containsExactly(rental.getPublicId());
+    }
+
+    @Test
+    @DisplayName("부스 토큰은 렌탈 목록만 볼 수 있고, 렌탈 상세와 시점 시작은 403")
+    void boothListsRentals() throws Exception {
+        Rental rental = Rental.open(Fixtures.device("C02EXAMPLE01"), "R");
+        when(service.list(isNull(), isNull(), eq(20), any()))
+                .thenReturn(new RentalService.Page(List.of(rental), null));
+        mvc.perform(get("/api/v1/rentals").with(booth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].serial").value("C02EXAMPLE01"));
+        ArgumentCaptor<CurrentUser> user = ArgumentCaptor.forClass(CurrentUser.class);
+        verify(service).list(isNull(), isNull(), eq(20), user.capture());
+        org.assertj.core.api.Assertions.assertThat(user.getValue().isBooth()).isTrue();
+
+        mvc.perform(get("/api/v1/rentals/" + DEVICE).with(booth())).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/rentals/" + DEVICE + "/checkpoints").with(booth())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"OUT\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

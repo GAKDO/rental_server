@@ -35,6 +35,7 @@ public class SecurityConfig {
 
     private static final String ADMIN = "ADMIN";
     private static final String CUSTOMER = "CUSTOMER";
+    private static final String BOOTH = "BOOTH";
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
@@ -43,7 +44,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/rentals/ping").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/health", "/actuator/info").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/rentals", "/api/v1/rentals/*").hasAnyRole(ADMIN, CUSTOMER)
+                        // 부스 태블릿의 "검사 기다리는 기기" 목록(11/3 MVP): 목록만 열고, 결과는 서비스에서 OPEN으로 고정한다
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rentals").hasAnyRole(ADMIN, CUSTOMER, BOOTH)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rentals/*").hasAnyRole(ADMIN, CUSTOMER)
                         .requestMatchers(HttpMethod.GET, "/api/v1/device-models/*").hasAnyRole(ADMIN, CUSTOMER)
                         .requestMatchers("/api/v1/rentals/**", "/api/v1/devices/**", "/api/v1/device-models/**",
                                 "/api/v1/rentals", "/api/v1/devices", "/api/v1/device-models").hasRole(ADMIN)
