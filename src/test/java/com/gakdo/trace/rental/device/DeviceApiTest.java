@@ -54,8 +54,8 @@ class DeviceApiTest extends WebTestBase {
     @DisplayName("기기 등록은 201과 계약 Device 형식(deviceId는 publicId)을 돌려준다")
     void registerDevice() throws Exception {
         Device device = Fixtures.device("C02EXAMPLE01");
-        when(devices.register(eq("C02EXAMPLE01"), eq("MBA13-M2"), eq(DeviceOs.MACOS), eq("미드나이트"), eq("A-0001"),
-                eq(TestJwts.ADMIN_ID))).thenReturn(device);
+        when(devices.register("C02EXAMPLE01", "MBA13-M2", DeviceOs.MACOS, "미드나이트", "A-0001", TestJwts.ADMIN_ID))
+                .thenReturn(device);
         mvc.perform(post("/api/v1/devices").with(admin()).contentType(MediaType.APPLICATION_JSON).content("""
                 {"serial":"C02EXAMPLE01","modelCode":"MBA13-M2","os":"MACOS","color":"미드나이트","assetNo":"A-0001"}
                 """))

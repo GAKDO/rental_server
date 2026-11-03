@@ -21,8 +21,10 @@ import com.gakdo.trace.rental.device.domain.DeviceStatus;
  */
 final class DeviceUpdateParser {
 
-    private static final Set<String> ALLOWED = Set.of("color", "assetNo", "os", "status");
-    private static final Map<String, Integer> MAX_LENGTH = Map.of("color", 32, "assetNo", 64);
+    private static final String COLOR = "color";
+    private static final String ASSET_NO = "assetNo";
+    private static final Set<String> ALLOWED = Set.of(COLOR, ASSET_NO, "os", "status");
+    private static final Map<String, Integer> MAX_LENGTH = Map.of(COLOR, 32, ASSET_NO, 64);
 
     private DeviceUpdateParser() {
     }
@@ -39,8 +41,8 @@ final class DeviceUpdateParser {
                         ? "등록 뒤에는 바꿀 수 없습니다" : "받지 않는 필드입니다"));
             }
         }
-        TextChange color = text(body, "color", errors);
-        TextChange assetNo = text(body, "assetNo", errors);
+        TextChange color = text(body, COLOR, errors);
+        TextChange assetNo = text(body, ASSET_NO, errors);
         DeviceOs os = code(body, "os", DeviceOs.class, errors);
         DeviceStatus status = code(body, "status", DeviceStatus.class, errors);
         if (!errors.isEmpty()) {

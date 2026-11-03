@@ -53,8 +53,10 @@ public class CheckpointEventListener {
         String checkpointId = publicId(event, "checkpointId");
         OffsetDateTime occurredAt = occurredAt(event);
         boolean changed = progress.advance(rentalId, checkpointId, next, occurredAt);
-        log.info("시점 이벤트 {} eventId={} checkpointId={} → {}{}", routingKey, event.path("eventId").asText(),
-                checkpointId, next, changed ? "" : " (변화 없음)");
+        if (log.isInfoEnabled()) {
+            log.info("시점 이벤트 {} eventId={} checkpointId={} → {}{}", routingKey, event.path("eventId").asText(),
+                    checkpointId, next, changed ? "" : " (변화 없음)");
+        }
         return changed;
     }
 
