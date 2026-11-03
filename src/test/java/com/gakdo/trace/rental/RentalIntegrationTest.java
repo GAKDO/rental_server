@@ -133,6 +133,11 @@ class RentalIntegrationTest {
         JsonNode startedEvent = json.readTree(startedMessage.getBody());
         assertThat(startedMessage.getMessageProperties().getMessageId()).isEqualTo(startedEvent.get("eventId").asText());
         assertThat(startedEvent.get("schemaVersion").asText()).isEqualTo("1.1");
+        // 1.0.x 추가 필드: 상세에 시리얼, 목록에 지금 시점(트랜잭션 안에서 시점을 읽는지 실제 DB로 확인)
+        mvc.perform(get("/api/v1/rentals/" + rentalId).with(admin()))
+                .andExpect(jsonPath("$.serial").value("SER-FLOW-1"));
+        mvc.perform(get("/api/v1/rentals").with(admin()))
+                .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')].currentCheckpoint.type").value("OUT"));
         assertThat(startedEvent.get("rentalId").asText()).isEqualTo(rentalId);
         assertThat(startedEvent.get("checkpointId").asText()).isEqualTo(out);
         assertThat(startedEvent.get("checkpointType").asText()).isEqualTo("OUT");
