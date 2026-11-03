@@ -35,23 +35,26 @@ public final class RentalDtos {
         }
     }
 
-    public record RentalResponse(String rentalId, String deviceId, String renterRef, RentalStatus status,
-            OffsetDateTime startedAt, OffsetDateTime endedAt, OffsetDateTime createdAt,
+    /** serial은 계약 1.0.x 추가 필드(화면이 기기를 따로 부르지 않게). */
+    public record RentalResponse(String rentalId, String deviceId, String serial, String renterRef,
+            RentalStatus status, OffsetDateTime startedAt, OffsetDateTime endedAt, OffsetDateTime createdAt,
             List<CheckpointResponse> checkpoints) {
 
         static RentalResponse from(Rental r) {
-            return new RentalResponse(r.getPublicId(), r.getDevice().getPublicId(), r.getRenterRef(), r.getStatus(),
-                    r.getStartedAt(), r.getEndedAt(), r.getCreatedAt(),
+            return new RentalResponse(r.getPublicId(), r.getDevice().getPublicId(), r.getDevice().getSerial(),
+                    r.getRenterRef(), r.getStatus(), r.getStartedAt(), r.getEndedAt(), r.getCreatedAt(),
                     r.getCheckpoints().stream().map(CheckpointResponse::from).toList());
         }
     }
 
+    /** currentCheckpoint는 계약 1.0.x 추가 필드: 가장 늦게 시작한 시점, 없으면 null. */
     public record RentalSummaryResponse(String rentalId, String deviceId, String serial, String modelCode,
-            RentalStatus status, OffsetDateTime createdAt) {
+            RentalStatus status, OffsetDateTime createdAt, CheckpointResponse currentCheckpoint) {
 
         static RentalSummaryResponse from(Rental r) {
             return new RentalSummaryResponse(r.getPublicId(), r.getDevice().getPublicId(), r.getDevice().getSerial(),
-                    r.getDevice().getModel().getModelCode(), r.getStatus(), r.getCreatedAt());
+                    r.getDevice().getModel().getModelCode(), r.getStatus(), r.getCreatedAt(),
+                    r.currentCheckpoint().map(CheckpointResponse::from).orElse(null));
         }
     }
 

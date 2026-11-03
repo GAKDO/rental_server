@@ -102,6 +102,32 @@ class RentalApiTest extends WebTestBase {
     }
 
     @Test
+    @DisplayName("렌탈 상세에 기기 시리얼(serial)이 있다")
+    void getRentalHasSerial() throws Exception {
+        Rental rental = Rental.open(Fixtures.device("C02EXAMPLE01"), "R");
+        when(service.get(eq(rental.getPublicId()), any())).thenReturn(rental);
+        mvc.perform(get("/api/v1/rentals/" + rental.getPublicId()).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.serial").value("C02EXAMPLE01"));
+    }
+
+    @Test
+    @DisplayName("렌탈 목록 요약의 currentCheckpoint는 가장 늦게 시작한 시점이고, 시작 전이면 null")
+    void listHasCurrentCheckpoint() throws Exception {
+        Rental started = Rental.open(Fixtures.device("S1"), "R1");
+        Checkpoint out = started.startCheckpoint(CheckpointType.OUT);
+        Rental fresh = Rental.open(Fixtures.device("S2"), "R2");
+        when(service.list(isNull(), isNull(), eq(20), any()))
+                .thenReturn(new RentalService.Page(List.of(started, fresh), null));
+        mvc.perform(get("/api/v1/rentals").with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].currentCheckpoint.checkpointId").value(out.getPublicId()))
+                .andExpect(jsonPath("$.items[0].currentCheckpoint.type").value("OUT"))
+                .andExpect(jsonPath("$.items[0].currentCheckpoint.status").value("OPEN"))
+                .andExpect(jsonPath("$.items[1].currentCheckpoint").isEmpty());
+    }
+
+    @Test
     @DisplayName("CUSTOMER가 남의 렌탈을 보면 403 OUT_OF_SCOPE")
     void outOfScope() throws Exception {
         when(service.get(eq(DEVICE), any())).thenThrow(new DomainException(ErrorCode.OUT_OF_SCOPE, "남의 렌탈"));

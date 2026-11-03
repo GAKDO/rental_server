@@ -6,6 +6,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
+import org.hibernate.annotations.BatchSize;
+
 import com.gakdo.trace.rental.common.domain.DomainException;
 import com.gakdo.trace.rental.common.domain.ErrorCode;
 import com.gakdo.trace.rental.common.infra.Times;
@@ -66,6 +68,8 @@ public class Rental {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    // 목록에서 렌탈마다 시점을 읽으므로 한 번에 묶어 읽는다(N+1 방지)
+    @BatchSize(size = 100)
     @OneToMany(mappedBy = "rental", cascade = CascadeType.PERSIST)
     private List<Checkpoint> checkpoints = new ArrayList<>();
 
@@ -132,6 +136,11 @@ public class Rental {
 
     public Optional<Checkpoint> find(CheckpointType type) {
         return checkpoints.stream().filter(c -> c.getType() == type).findFirst();
+    }
+
+    /** 지금 시점 = 시작된 시점 중 가장 뒤(OUT → RCV → RET). 아직 없으면 빈 값. */
+    public Optional<Checkpoint> currentCheckpoint() {
+        return checkpoints.stream().max(Comparator.comparing(Checkpoint::getType));
     }
 
     /** OUT·RCV·RET 순 */

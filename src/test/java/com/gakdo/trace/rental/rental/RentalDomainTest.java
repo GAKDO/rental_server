@@ -117,6 +117,18 @@ class RentalDomainTest {
         assertThat(CheckpointType.RET.previous()).isEqualTo(CheckpointType.RCV);
     }
 
+    @Test
+    @DisplayName("지금 시점은 시작 전엔 없고, 출고 봉인 뒤 수령을 시작하면 수령이다")
+    void currentCheckpointIsLatestStarted() {
+        Rental rental = Rental.open(Fixtures.device("S1"), "R");
+        assertThat(rental.currentCheckpoint()).isEmpty();
+        Checkpoint out = rental.startCheckpoint(CheckpointType.OUT);
+        assertThat(rental.currentCheckpoint()).containsSame(out);
+        seal(rental, out);
+        Checkpoint rcv = rental.startCheckpoint(CheckpointType.RCV);
+        assertThat(rental.currentCheckpoint()).containsSame(rcv);
+    }
+
     private static void seal(Rental rental, Checkpoint checkpoint) {
         checkpoint.advanceTo(CheckpointStatus.SEALED, OffsetDateTime.now());
         rental.onCheckpointSealed(checkpoint);

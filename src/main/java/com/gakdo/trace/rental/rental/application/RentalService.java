@@ -75,6 +75,8 @@ public class RentalService {
                 query -> query.sortBy(NEWEST_FIRST).limit(limit + 1).all());
         boolean more = rows.size() > limit;
         List<Rental> items = more ? rows.subList(0, limit) : rows;
+        // 목록의 지금 시점(currentCheckpoint)을 트랜잭션 안에서 읽어 둔다(@BatchSize로 한 번에)
+        items.forEach(Rental::currentCheckpoint);
         String next = more ? new Cursor(items.get(limit - 1).getCreatedAt(), items.get(limit - 1).getPublicId()).encode() : null;
         return new Page(List.copyOf(items), next);
     }
