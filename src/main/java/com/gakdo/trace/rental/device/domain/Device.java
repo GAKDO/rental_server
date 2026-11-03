@@ -99,10 +99,10 @@ public class Device {
             checkTransition(changes.status());
         }
         if (changes.color() != null) {
-            this.color = changes.color().orElse(null);
+            this.color = changes.color().value();
         }
         if (changes.assetNo() != null) {
-            this.assetNo = changes.assetNo().orElse(null);
+            this.assetNo = changes.assetNo().value();
         }
         if (changes.os() != null) {
             this.os = changes.os();

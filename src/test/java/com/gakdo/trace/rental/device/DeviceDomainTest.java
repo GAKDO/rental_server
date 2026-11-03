@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
-import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,6 +13,7 @@ import com.gakdo.trace.rental.common.domain.DomainException;
 import com.gakdo.trace.rental.common.domain.ErrorCode;
 import com.gakdo.trace.rental.device.domain.Device;
 import com.gakdo.trace.rental.device.domain.DeviceChanges;
+import com.gakdo.trace.rental.device.domain.DeviceChanges.TextChange;
 import com.gakdo.trace.rental.device.domain.DeviceOs;
 import com.gakdo.trace.rental.device.domain.DeviceStatus;
 import com.gakdo.trace.rental.devicemodel.domain.DeviceModel;
@@ -62,7 +62,7 @@ class DeviceDomainTest {
         var retiredAt = device.getRetiredAt();
 
         assertThatThrownBy(() -> device.change(
-                new DeviceChanges(Optional.empty(), null, null, DeviceStatus.ACTIVE), "admin0000000000000003"))
+                new DeviceChanges(TextChange.clear(), null, null, DeviceStatus.ACTIVE), "admin0000000000000003"))
                 .isInstanceOfSatisfying(DomainException.class,
                         e -> assertThat(e.code()).isEqualTo(ErrorCode.DEVICE_STATUS_TRANSITION_INVALID));
         assertThat(device.getStatus()).isEqualTo(DeviceStatus.RETIRED);
@@ -84,7 +84,7 @@ class DeviceDomainTest {
     @DisplayName("PATCH: 생략한 값은 그대로, null은 지우고, 시리얼은 그대로다")
     void changeKeepsSerial() {
         Device device = Fixtures.device("C02EXAMPLE01");
-        device.change(new DeviceChanges(Optional.empty(), Optional.of("A-0002"), DeviceOs.WINDOWS, null), null);
+        device.change(new DeviceChanges(TextChange.clear(), TextChange.of("A-0002"), DeviceOs.WINDOWS, null), null);
         assertThat(device.getColor()).isNull();
         assertThat(device.getAssetNo()).isEqualTo("A-0002");
         assertThat(device.getOs()).isEqualTo(DeviceOs.WINDOWS);
@@ -117,7 +117,7 @@ class DeviceDomainTest {
     @DisplayName("PATCH 본문: color null은 지우기, 생략은 그대로")
     void parseNullVsMissing() throws Exception {
         DeviceChanges changes = parse("{\"color\":null,\"status\":\"MAINTENANCE\",\"os\":\"MACOS\"}");
-        assertThat(changes.color()).isEmpty();
+        assertThat(changes.color()).isEqualTo(TextChange.clear());
         assertThat(changes.assetNo()).isNull();
         assertThat(changes.status()).isEqualTo(DeviceStatus.MAINTENANCE);
         assertThat(changes.os()).isEqualTo(DeviceOs.MACOS);
