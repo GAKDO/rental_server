@@ -129,27 +129,8 @@ class RentalIntegrationTest {
                 .andExpect(jsonPath("$.code").value("CHECKPOINT_ORDER_VIOLATION"));
         String out = checkpointId(startCheckpoint(rentalId, "OUT").andExpect(status().isCreated()).andReturn());
         // 1.1: 시점을 시작하면 기종·시리얼을 실은 trace.checkpoint.started가 한 번 나간다(거절된 RCV는 안 나감)
-        Message startedMessage = rabbit.receive(started.getName(), 10_000);
-        assertThat(startedMessage).isNotNull();
-        JsonNode startedEvent = json.readTree(startedMessage.getBody());
-        assertThat(startedMessage.getMessageProperties().getMessageId()).isEqualTo(startedEvent.get("eventId").asText());
-        assertThat(startedEvent.get("schemaVersion").asText()).isEqualTo("1.1");
-        // 1.0.x 추가 필드: 상세에 시리얼, 목록에 지금 시점(트랜잭션 안에서 시점을 읽는지 실제 DB로 확인)
-        mvc.perform(get("/api/v1/rentals/" + rentalId).with(admin()))
-                .andExpect(jsonPath("$.serial").value("SER-FLOW-1"));
-        mvc.perform(get("/api/v1/rentals").with(admin()))
-                .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')].currentCheckpoint.type").value("OUT"));
-        // 부스 태블릿 기기 목록: 부스 토큰은 진행 중 렌탈을 rentals 클레임 없이 본다
-        mvc.perform(get("/api/v1/rentals").with(booth()))
-                .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')].currentCheckpoint.type").value("OUT"));
-        assertThat(startedEvent.get("rentalId").asText()).isEqualTo(rentalId);
-        assertThat(startedEvent.get("checkpointId").asText()).isEqualTo(out);
-        assertThat(startedEvent.get("checkpointType").asText()).isEqualTo("OUT");
-        assertThat(startedEvent.get("deviceId").asText()).isEqualTo(deviceId);
-        assertThat(startedEvent.get("serial").asText()).isEqualTo("SER-FLOW-1");
-        assertThat(startedEvent.get("modelCode").asText()).isEqualTo("FLOW-1");
-        assertThat(startedEvent.get("modelName").asText()).isNotBlank();
-        assertThat(rabbit.receive(started.getName(), 500)).isNull();
+        assertStartedOnce(started, rentalId, out, deviceId);
+        assertOutCheckpointListed(rentalId);
         startCheckpoint(rentalId, "RCV").andExpect(status().isConflict());
 
         publish(AmqpConfig.CAPTURE_UPLOADED, rentalId, out);
@@ -174,6 +155,42 @@ class RentalIntegrationTest {
         mvc.perform(get("/api/v1/rentals?status=RETURNED").with(booth()))
                 .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')]").isEmpty());
 
+        assertClosesAfterReturn(rentalId);
+
+        openRental(deviceId);
+    }
+
+    /** 시점 시작 이벤트(trace.checkpoint.started 1.1)가 기종·시리얼을 싣고 한 번만 나갔는지 본다. */
+    private void assertStartedOnce(Queue started, String rentalId, String checkpointId, String deviceId)
+            throws Exception {
+        Message startedMessage = rabbit.receive(started.getName(), 10_000);
+        assertThat(startedMessage).isNotNull();
+        JsonNode startedEvent = json.readTree(startedMessage.getBody());
+        assertThat(startedMessage.getMessageProperties().getMessageId()).isEqualTo(startedEvent.get("eventId").asText());
+        assertThat(startedEvent.get("schemaVersion").asText()).isEqualTo("1.1");
+        assertThat(startedEvent.get("rentalId").asText()).isEqualTo(rentalId);
+        assertThat(startedEvent.get("checkpointId").asText()).isEqualTo(checkpointId);
+        assertThat(startedEvent.get("checkpointType").asText()).isEqualTo("OUT");
+        assertThat(startedEvent.get("deviceId").asText()).isEqualTo(deviceId);
+        assertThat(startedEvent.get("serial").asText()).isEqualTo("SER-FLOW-1");
+        assertThat(startedEvent.get("modelCode").asText()).isEqualTo("FLOW-1");
+        assertThat(startedEvent.get("modelName").asText()).isNotBlank();
+        assertThat(rabbit.receive(started.getName(), 500)).isNull();
+    }
+
+    /** 1.0.x 추가 필드: 상세에 시리얼, 목록에 지금 시점(트랜잭션 안에서 시점을 읽는지 실제 DB로 확인). */
+    private void assertOutCheckpointListed(String rentalId) throws Exception {
+        mvc.perform(get("/api/v1/rentals/" + rentalId).with(admin()))
+                .andExpect(jsonPath("$.serial").value("SER-FLOW-1"));
+        mvc.perform(get("/api/v1/rentals").with(admin()))
+                .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')].currentCheckpoint.type").value("OUT"));
+        // 부스 태블릿 기기 목록: 부스 토큰은 진행 중 렌탈을 rentals 클레임 없이 본다
+        mvc.perform(get("/api/v1/rentals").with(booth()))
+                .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')].currentCheckpoint.type").value("OUT"));
+    }
+
+    /** 세 시점이 끝나 RETURNED인 렌탈을 닫으면 CLOSED가 되고, 다른 고객은 볼 수 없다. */
+    private void assertClosesAfterReturn(String rentalId) throws Exception {
         mvc.perform(get("/api/v1/rentals/" + rentalId).with(admin()))
                 .andExpect(jsonPath("$.checkpoints.length()").value(3))
                 .andExpect(jsonPath("$.checkpoints[0].occurredAt").isNotEmpty())
@@ -183,8 +200,6 @@ class RentalIntegrationTest {
                 .andExpect(jsonPath("$.status").value("CLOSED"))
                 .andExpect(jsonPath("$.endedAt").isNotEmpty());
         mvc.perform(get("/api/v1/rentals/" + rentalId).with(customer())).andExpect(status().isForbidden());
-
-        openRental(deviceId);
     }
 
     @Test

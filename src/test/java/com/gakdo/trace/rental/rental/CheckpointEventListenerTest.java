@@ -33,8 +33,8 @@ class CheckpointEventListenerTest {
     void routingKeys() {
         when(progress.advance(any(), any(), any(), any())).thenReturn(true);
         assertThat(listener.handle("trace.capture.uploaded", event())).isTrue();
-        verify(progress).advance(eq(RENTAL), eq(CHECKPOINT), eq(CheckpointStatus.CAPTURED),
-                eq(OffsetDateTime.parse("2026-11-09T14:05:12+09:00")));
+        verify(progress).advance(RENTAL, CHECKPOINT, CheckpointStatus.CAPTURED,
+                OffsetDateTime.parse("2026-11-09T14:05:12+09:00"));
         listener.handle("trace.checkpoint.graded", event());
         verify(progress).advance(eq(RENTAL), eq(CHECKPOINT), eq(CheckpointStatus.GRADED), any());
         listener.handle("trace.record.sealed", event());

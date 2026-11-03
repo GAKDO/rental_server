@@ -94,7 +94,7 @@ class DeviceDomainTest {
 
     @Test
     @DisplayName("시리얼은 등록 뒤 바꿀 수 없다: PATCH 본문에 serial·modelCode가 있으면 400")
-    void serialImmutable() throws Exception {
+    void serialImmutable() {
         assertThatThrownBy(() -> parse("{\"serial\":\"X\",\"modelCode\":\"Y\"}"))
                 .isInstanceOfSatisfying(DomainException.class, e -> {
                     assertThat(e.code()).isEqualTo(ErrorCode.VALIDATION_FAILED);
@@ -110,7 +110,8 @@ class DeviceDomainTest {
         assertThatThrownBy(() -> parse("{\"status\":\"BROKEN\"}")).isInstanceOf(DomainException.class);
         assertThatThrownBy(() -> parse("{\"os\":1}")).isInstanceOf(DomainException.class);
         assertThatThrownBy(() -> parse("{\"color\":123}")).isInstanceOf(DomainException.class);
-        assertThatThrownBy(() -> parse("{\"color\":\"" + "x".repeat(33) + "\"}")).isInstanceOf(DomainException.class);
+        String tooLong = "{\"color\":\"" + "x".repeat(33) + "\"}";
+        assertThatThrownBy(() -> parse(tooLong)).isInstanceOf(DomainException.class);
     }
 
     @Test
