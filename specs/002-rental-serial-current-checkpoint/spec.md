@@ -2,6 +2,7 @@
 
 - 기능 브랜치: `claude/project-thread-nvbnsg` (contracts, rental_server)
 - 날짜: 2026-11-03
+- 계약: GAKDO/contracts `specs/004-rental-serial-current-checkpoint` (contracts PR 19)
 - 요청: C(웹, WE1·WE3) → A(민서). 계약 1.0.0 고정 이후 **추가만** 하는 변경
 - 관련 요구사항: FR-RNT-02(렌탈과 세 시점 상태), FR-USR-03(내 렌탈 목록)
 
