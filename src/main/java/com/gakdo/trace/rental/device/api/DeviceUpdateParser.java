@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -12,6 +11,7 @@ import com.gakdo.trace.rental.common.domain.DomainException;
 import com.gakdo.trace.rental.common.domain.DomainException.FieldError;
 import com.gakdo.trace.rental.common.domain.ErrorCode;
 import com.gakdo.trace.rental.device.domain.DeviceChanges;
+import com.gakdo.trace.rental.device.domain.DeviceChanges.TextChange;
 import com.gakdo.trace.rental.device.domain.DeviceOs;
 import com.gakdo.trace.rental.device.domain.DeviceStatus;
 
@@ -39,8 +39,8 @@ final class DeviceUpdateParser {
                         ? "등록 뒤에는 바꿀 수 없습니다" : "받지 않는 필드입니다"));
             }
         }
-        Optional<String> color = text(body, "color", errors);
-        Optional<String> assetNo = text(body, "assetNo", errors);
+        TextChange color = text(body, "color", errors);
+        TextChange assetNo = text(body, "assetNo", errors);
         DeviceOs os = code(body, "os", DeviceOs.class, errors);
         DeviceStatus status = code(body, "status", DeviceStatus.class, errors);
         if (!errors.isEmpty()) {
@@ -49,14 +49,14 @@ final class DeviceUpdateParser {
         return new DeviceChanges(color, assetNo, os, status);
     }
 
-    /** 없으면 null(그대로), null이면 empty(지우기). */
-    private static Optional<String> text(JsonNode body, String field, List<FieldError> errors) {
+    /** 없거나 잘못되면 null(그대로, 잘못은 errors에), null이면 지우기. */
+    private static TextChange text(JsonNode body, String field, List<FieldError> errors) {
         if (!body.has(field)) {
             return null;
         }
         JsonNode node = body.get(field);
         if (node.isNull()) {
-            return Optional.empty();
+            return TextChange.clear();
         }
         if (!node.isTextual()) {
             errors.add(new FieldError(field, "문자열이어야 합니다"));
@@ -66,7 +66,7 @@ final class DeviceUpdateParser {
             errors.add(new FieldError(field, MAX_LENGTH.get(field) + "자 이하여야 합니다"));
             return null;
         }
-        return Optional.of(node.asText());
+        return TextChange.of(node.asText());
     }
 
     private static <E extends Enum<E>> E code(JsonNode body, String field, Class<E> type, List<FieldError> errors) {
