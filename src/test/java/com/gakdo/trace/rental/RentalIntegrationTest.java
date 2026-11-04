@@ -5,6 +5,7 @@ import static com.gakdo.trace.rental.support.TestJwts.booth;
 import static com.gakdo.trace.rental.support.TestJwts.customer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -254,6 +255,37 @@ class RentalIntegrationTest {
                 .content("{\"status\":\"ACTIVE\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("시험 렌탈(TEST-)을 지우면 렌탈·시점·기기가 사라지고 시점마다 purged가 나가며, 같은 시리얼로 다시 등록된다. 실제 렌탈은 409")
+    void deleteTestRental() throws Exception {
+        upsertModel("PURGE-1");
+        String deviceId = registerDevice("TEST-PURGE-1", "PURGE-1");
+        String rentalId = openRental(deviceId);
+        String out = checkpointId(startCheckpoint(rentalId, "OUT").andExpect(status().isCreated()).andReturn());
+        Queue purged = new Queue("test.checkpoint.purged", false, false, false);
+        amqpAdmin.declareQueue(purged);
+        amqpAdmin.purgeQueue(purged.getName(), false);
+        amqpAdmin.declareBinding(BindingBuilder.bind(purged).to(new TopicExchange(AmqpConfig.EXCHANGE))
+                .with("trace.checkpoint.purged"));
+
+        mvc.perform(delete("/api/v1/rentals/" + rentalId).with(admin())).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/rentals/" + rentalId).with(admin())).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("select count(*) from rental.device where public_id = ?", Integer.class, deviceId))
+                .isZero();
+        Message message = rabbit.receive(purged.getName(), 10_000);
+        assertThat(message).isNotNull();
+        JsonNode event = json.readTree(message.getBody());
+        assertThat(event.get("checkpointId").asText()).isEqualTo(out);
+        assertThat(event.get("serial").asText()).isEqualTo("TEST-PURGE-1");
+        assertThat(rabbit.receive(purged.getName(), 500)).isNull();
+        registerDevice("TEST-PURGE-1", "PURGE-1");
+
+        String real = openRental(registerDevice("SER-PURGE-2", "PURGE-1"));
+        mvc.perform(delete("/api/v1/rentals/" + real).with(admin()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("NOT_TEST_DATA"));
+        mvc.perform(get("/api/v1/rentals/" + real).with(admin())).andExpect(status().isOk());
     }
 
     @Test

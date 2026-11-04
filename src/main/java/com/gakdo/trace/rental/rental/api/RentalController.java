@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,6 +64,13 @@ public class RentalController {
     @GetMapping("/{rentalId}")
     public RentalResponse get(@PathVariable @Pattern(regexp = PublicIds.PATTERN) String rentalId, @AuthenticationPrincipal Jwt jwt) {
         return RentalResponse.from(service.get(rentalId, CurrentUser.from(jwt)));
+    }
+
+    /** 시험 렌탈 지우기: 기기 시리얼 TEST-만(아니면 409 NOT_TEST_DATA). ADMIN만(SecurityConfig). */
+    @DeleteMapping("/{rentalId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTestRental(@PathVariable @Pattern(regexp = PublicIds.PATTERN) String rentalId) {
+        service.deleteTestRental(rentalId);
     }
 
     @PostMapping("/{rentalId}/checkpoints")
