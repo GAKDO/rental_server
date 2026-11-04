@@ -189,6 +189,8 @@ class DeviceApiTest extends WebTestBase {
         mvc.perform(get("/api/v1/device-models").with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].modelCode").value("MBA13-M2"))
+                .andExpect(jsonPath("$.items[0].spec.cpu").value("Apple M2"))
+                .andExpect(jsonPath("$.items[0].spec.gpu").doesNotExist())
                 .andExpect(jsonPath("$.items[0].dimensions").doesNotExist());
         mvc.perform(get("/api/v1/device-models").with(customer())).andExpect(status().isForbidden());
 
@@ -215,5 +217,26 @@ class DeviceApiTest extends WebTestBase {
         mvc.perform(get("/api/v1/device-models/NONE-1").with(admin()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("기준 사양에 GPU를 선택으로 저장하고, 128자를 넘으면 400")
+    void modelSpecGpu() throws Exception {
+        var captor = org.mockito.ArgumentCaptor.forClass(
+                com.gakdo.trace.rental.devicemodel.domain.DeviceModel.Attributes.class);
+        when(models.upsert(eq("GRAM16-2024"), captor.capture(), eq(TestJwts.ADMIN_ID))).thenReturn(Fixtures.model());
+        mvc.perform(put("/api/v1/device-models/GRAM16-2024").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"LG 그램 16","manufacturer":"LG","formFactor":"CLAMSHELL",
+                         "spec":{"cpu":"Intel Core Ultra 7 155H","ramGb":16,"ssdGb":512,"gpu":"Intel Arc Graphics"},
+                         "dimensions":{"widthMm":357.0,"depthMm":250.0,"baseHMm":12.0,"lidHMm":5.0}}
+                        """))
+                .andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().spec().gpu()).isEqualTo("Intel Arc Graphics");
+
+        mvc.perform(put("/api/v1/device-models/GRAM16-2024").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"X\",\"formFactor\":\"CLAMSHELL\",\"spec\":{\"gpu\":\"" + "G".repeat(129)
+                        + "\"},\"dimensions\":{\"widthMm\":1,\"depthMm\":1,\"baseHMm\":1,\"lidHMm\":1}}"))
+                .andExpect(status().isBadRequest());
     }
 }

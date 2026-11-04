@@ -17,7 +17,7 @@ public final class Fixtures {
 
     public static DeviceModel.Attributes mba13() {
         return new DeviceModel.Attributes("MacBook Air (M2, 2022)", "Apple", FormFactor.CLAMSHELL,
-                new ModelSpec("Apple M2", 8, 256),
+                new ModelSpec("Apple M2", 8, 256, null),
                 new Dimensions(new BigDecimal("304.1"), new BigDecimal("215.0"), new BigDecimal("7.0"),
                         new BigDecimal("4.3")));
     }
