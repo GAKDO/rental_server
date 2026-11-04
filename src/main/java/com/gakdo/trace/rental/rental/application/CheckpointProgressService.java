@@ -2,8 +2,6 @@ package com.gakdo.trace.rental.rental.application;
 
 import java.time.OffsetDateTime;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,11 +12,11 @@ import com.gakdo.trace.rental.rental.infra.CheckpointRepository;
 /**
  * 다른 서비스의 이벤트로 시점 상태를 앞으로 옮긴다(FR-RNT-02).
  * capture.uploaded → CAPTURED, checkpoint.graded → GRADED, record.sealed → SEALED(반납이면 렌탈 RETURNED).
+ * 부스·폰이 보낸 rentalId·checkpointId 짝은 capture-server가 대조하지 않으므로 여기서 대조한다.
+ * 짝이 어긋나면 아무것도 바꾸지 않고 결과로 알린다(리스너가 DLQ로 보냄).
  */
 @Service
 public class CheckpointProgressService {
-
-    private static final Logger log = LoggerFactory.getLogger(CheckpointProgressService.class);
 
     private final CheckpointRepository checkpoints;
 
@@ -26,22 +24,19 @@ public class CheckpointProgressService {
         this.checkpoints = checkpoints;
     }
 
-    /** @return 상태가 바뀌었으면 true. 모르는 시점·다른 렌탈의 시점이면 경고만 남기고 false. */
     @Transactional
-    public boolean advance(String rentalId, String checkpointId, CheckpointStatus next, OffsetDateTime occurredAt) {
+    public CheckpointAdvance advance(String rentalId, String checkpointId, CheckpointStatus next, OffsetDateTime occurredAt) {
         Checkpoint checkpoint = checkpoints.lockByPublicId(checkpointId).orElse(null);
         if (checkpoint == null) {
-            log.warn("모르는 시점의 이벤트를 건너뜁니다: checkpointId={} status={}", checkpointId, next);
-            return false;
+            return CheckpointAdvance.UNKNOWN_CHECKPOINT;
         }
         if (!checkpoint.getRental().getPublicId().equals(rentalId)) {
-            log.warn("렌탈과 시점이 맞지 않는 이벤트를 건너뜁니다: rentalId={} checkpointId={}", rentalId, checkpointId);
-            return false;
+            return CheckpointAdvance.RENTAL_MISMATCH;
         }
         boolean changed = checkpoint.advanceTo(next, occurredAt);
         if (changed && checkpoint.isSealed()) {
             checkpoint.getRental().onCheckpointSealed(checkpoint);
         }
-        return changed;
+        return changed ? CheckpointAdvance.CHANGED : CheckpointAdvance.UNCHANGED;
     }
 }

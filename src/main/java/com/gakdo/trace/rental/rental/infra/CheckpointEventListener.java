@@ -15,12 +15,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gakdo.trace.rental.common.infra.PublicIds;
+import com.gakdo.trace.rental.rental.application.CheckpointAdvance;
 import com.gakdo.trace.rental.rental.application.CheckpointProgressService;
 import com.gakdo.trace.rental.rental.domain.CheckpointStatus;
 
 /**
  * 이벤트 3종으로 시점 상태를 옮긴다. 봉투(rentalId·checkpointId·occurredAt)만 읽고 나머지 필드는 무시한다(너그러운 소비자).
- * 형식이 깨진 메시지는 재시도해도 소용없어 바로 DLX로 보낸다.
+ * 형식이 깨진 메시지와 렌탈·시점 짝이 rental-server 기록과 다른 메시지는 재시도해도 소용없어 바로 DLX로 보낸다.
+ * 짝이 다른 메시지는 trace.rental.checkpoints.dlq에 남아 사람이 확인한다(부스가 다른 렌탈 시점으로 올린 경우 등).
  */
 @Component
 public class CheckpointEventListener {
@@ -52,7 +54,13 @@ public class CheckpointEventListener {
         String rentalId = publicId(event, "rentalId");
         String checkpointId = publicId(event, "checkpointId");
         OffsetDateTime occurredAt = occurredAt(event);
-        boolean changed = progress.advance(rentalId, checkpointId, next, occurredAt);
+        CheckpointAdvance result = progress.advance(rentalId, checkpointId, next, occurredAt);
+        if (result.isMismatch()) {
+            log.error("렌탈·시점 짝이 맞지 않는 이벤트를 DLQ로 보냅니다: {} eventId={} rentalId={} checkpointId={} 사유={}",
+                    routingKey, event.path("eventId").asText(), rentalId, checkpointId, result);
+            throw reject("렌탈·시점 짝이 맞지 않습니다: " + result);
+        }
+        boolean changed = result == CheckpointAdvance.CHANGED;
         if (log.isInfoEnabled()) {
             log.info("시점 이벤트 {} eventId={} checkpointId={} → {}{}", routingKey, event.path("eventId").asText(),
                     checkpointId, next, changed ? "" : " (변화 없음)");
