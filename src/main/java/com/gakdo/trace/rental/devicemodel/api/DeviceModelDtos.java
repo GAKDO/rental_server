@@ -40,12 +40,13 @@ public final class DeviceModelDtos {
         }
     }
 
+    /** 목록 항목. spec은 목록에서 기준 사양을 한눈에 보려고 항상 싣는다(없으면 null). */
     public record DeviceModelSummaryResponse(String modelCode, String name, String manufacturer,
-            FormFactor formFactor) {
+            FormFactor formFactor, ModelSpec spec) {
 
         static DeviceModelSummaryResponse from(DeviceModel m) {
             return new DeviceModelSummaryResponse(m.getModelCode(), m.getName(), m.getManufacturer(),
-                    m.getFormFactor());
+                    m.getFormFactor(), m.getSpec());
         }
     }
 
