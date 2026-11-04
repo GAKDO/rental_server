@@ -37,20 +37,28 @@ class BoothCodeFailureLimitTest {
     }
 
     @Test
-    @DisplayName("1분에 30번까지 틀려도 막지 않고, 31번째에 1분 동안 막은 뒤 풀린다")
-    void blocksAfterThirtyFailuresForOneMinute() {
+    @DisplayName("1분에 30번까지는 조회를 허락하고, 31번째는 조회 전에 막아 1분 뒤 풀린다")
+    void blocksThirtyFirstAttemptBeforeLookup() {
         MovableClock clock = new MovableClock();
         BoothCodeFailureLimit limit = new BoothCodeFailureLimit(clock);
         for (int i = 0; i < BoothCodeFailureLimit.MAX_FAILURES; i++) {
-            limit.recordFailure();
+            assertThat(limit.tryAcquire()).isZero();
         }
-        assertThat(limit.retryAfterSeconds()).isZero();
-        limit.recordFailure();
-        assertThat(limit.retryAfterSeconds()).isEqualTo(60);
+        assertThat(limit.tryAcquire()).isEqualTo(60);
         clock.advance(Duration.ofSeconds(59));
-        assertThat(limit.retryAfterSeconds()).isEqualTo(1);
+        assertThat(limit.tryAcquire()).isEqualTo(1);
         clock.advance(Duration.ofSeconds(1));
-        assertThat(limit.retryAfterSeconds()).isZero();
+        assertThat(limit.tryAcquire()).isZero();
+    }
+
+    @Test
+    @DisplayName("있는 코드(맞음·만료)로 되돌린 조회는 실패로 세지 않는다")
+    void releasedAttemptsDoNotCount() {
+        BoothCodeFailureLimit limit = new BoothCodeFailureLimit(new MovableClock());
+        for (int i = 0; i < 100; i++) {
+            assertThat(limit.tryAcquire()).isZero();
+            limit.release();
+        }
     }
 
     @Test
@@ -59,10 +67,30 @@ class BoothCodeFailureLimitTest {
         MovableClock clock = new MovableClock();
         BoothCodeFailureLimit limit = new BoothCodeFailureLimit(clock);
         for (int i = 0; i < BoothCodeFailureLimit.MAX_FAILURES; i++) {
-            limit.recordFailure();
+            limit.tryAcquire();
         }
         clock.advance(Duration.ofMinutes(1));
-        limit.recordFailure();
-        assertThat(limit.retryAfterSeconds()).isZero();
+        assertThat(limit.tryAcquire()).isZero();
+    }
+
+    @Test
+    @DisplayName("동시에 100개가 와도 한 구간에 조회를 허락받는 것은 30개뿐이다")
+    void concurrentAttemptsAreCappedAtThirty() throws Exception {
+        BoothCodeFailureLimit limit = new BoothCodeFailureLimit(new MovableClock());
+        java.util.concurrent.atomic.AtomicInteger allowed = new java.util.concurrent.atomic.AtomicInteger();
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(16)) {
+            java.util.List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                futures.add(pool.submit(() -> {
+                    if (limit.tryAcquire() == 0) {
+                        allowed.incrementAndGet();
+                    }
+                }));
+            }
+            for (var f : futures) {
+                f.get();
+            }
+        }
+        assertThat(allowed.get()).isEqualTo(BoothCodeFailureLimit.MAX_FAILURES);
     }
 }

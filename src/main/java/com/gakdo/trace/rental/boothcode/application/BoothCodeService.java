@@ -95,16 +95,17 @@ public class BoothCodeService {
 
     @Transactional
     public Target redeem(String code) {
-        long wait = limit.retryAfterSeconds();
+        // DB를 읽기 전에 실패로 미리 센다. 동시에 와도 한 구간 30번을 넘는 대입은 조회까지 가지 않는다
+        long wait = limit.tryAcquire();
         if (wait > 0) {
             throw new RateLimitedException("틀린 부스 코드가 너무 많아 잠시 막았습니다. 잠시 뒤 다시 넣어 주세요.", wait);
         }
         OffsetDateTime now = Times.now();
         List<BoothCode> rows = codes.findByCodeHash(hash(code));
         if (rows.isEmpty()) {
-            limit.recordFailure();
             throw new DomainException(ErrorCode.BOOTH_CODE_INVALID, "관리자 화면에 보이는 6자리를 다시 확인하세요.");
         }
+        limit.release(); // 발급한 적 있는 코드(맞음·만료·사용됨)는 대입 실패로 세지 않는다
         BoothCode live = rows.stream().filter(r -> r.isLive(now)).findFirst()
                 .orElseThrow(() -> expired("만료됐거나 이미 쓴 코드예요. 관리자 화면에서 다시 발급하세요."));
         Checkpoint checkpoint = live.getCheckpoint();

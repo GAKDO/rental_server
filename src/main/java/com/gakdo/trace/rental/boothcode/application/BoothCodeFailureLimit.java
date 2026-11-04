@@ -32,26 +32,35 @@ public class BoothCodeFailureLimit {
         this.clock = clock;
     }
 
-    /** 막혀 있으면 남은 초(1 이상), 아니면 0 */
-    public synchronized long retryAfterSeconds() {
+    /**
+     * 조회 한 번을 실패로 미리 센다(DB를 읽기 전에). 동시에 여러 요청이 와도 한 구간에 30번을 넘는 조회는 DB에 닿지 않는다.
+     * 코드가 DB에 있으면(맞음·만료·사용됨) {@link #release()}로 되돌린다.
+     *
+     * @return 0이면 조회해도 된다. 0보다 크면 막혔고, 다시 시도할 때까지 남은 초
+     */
+    public synchronized long tryAcquire() {
         Instant now = clock.instant();
         if (now.isBefore(blockedUntil)) {
             return Math.max(1, Duration.between(now, blockedUntil).toSeconds());
         }
-        return 0;
-    }
-
-    public synchronized void recordFailure() {
-        Instant now = clock.instant();
         if (!now.isBefore(windowStart.plus(WINDOW))) {
             windowStart = now;
             failures = 0;
         }
-        failures++;
-        if (failures > MAX_FAILURES) {
+        if (failures >= MAX_FAILURES) {
             blockedUntil = now.plus(BLOCK);
             windowStart = blockedUntil;
             failures = 0;
+            return BLOCK.toSeconds();
+        }
+        failures++;
+        return 0;
+    }
+
+    /** 미리 센 조회가 틀린 코드가 아니었으면 되돌린다. */
+    public synchronized void release() {
+        if (failures > 0) {
+            failures--;
         }
     }
 }
