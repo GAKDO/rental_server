@@ -28,6 +28,9 @@ import com.gakdo.trace.rental.rental.infra.RentalSpecs;
 @Service
 public class RentalService {
 
+    /** 시험 데이터 기기 시리얼 접두사. 이 접두사의 렌탈만 지울 수 있다. */
+    public static final String TEST_SERIAL_PREFIX = "TEST-";
+
     private static final Sort NEWEST_FIRST = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("publicId"));
 
     private final RentalRepository rentals;
@@ -100,6 +103,37 @@ public class RentalService {
                 Times.now(), rental.getPublicId(), saved.getPublicId(), type.name(), device.getPublicId(),
                 device.getSerial(), device.getModel().getModelCode(), device.getModel().getName()));
         return saved;
+    }
+
+    /**
+     * 시험 렌탈 지우기(11/4 민서 요청). 기기 시리얼이 TEST-로 시작하는 렌탈만, 상태와 관계없이 렌탈·시점을 지운다.
+     * 그 기기에 다른 렌탈·파일럿 참가가 없으면 기기도 지워 같은 시리얼로 다시 등록할 수 있게 한다.
+     * 시점마다 trace.checkpoint.purged를 내서 다른 서버가 자기 데이터를 지운다(채널 트랜잭션이라 커밋될 때 함께 나감).
+     */
+    @Transactional
+    public void deleteTestRental(String rentalId) {
+        Rental rental = rentals.lockByPublicId(rentalId).orElseThrow(() -> DomainException.notFound("렌탈"));
+        Device device = rental.getDevice();
+        if (!isTestSerial(device.getSerial())) {
+            throw new DomainException(ErrorCode.NOT_TEST_DATA, "기기 시리얼이 " + TEST_SERIAL_PREFIX + "로 시작하는 렌탈만 지울 수 있습니다.");
+        }
+        Long deviceId = device.getId();
+        String devicePublicId = device.getPublicId();
+        String serial = device.getSerial();
+        List<CheckpointPurgedEvent> purged = rental.getCheckpoints().stream()
+                .map(c -> new CheckpointPurgedEvent(CheckpointPurgedEvent.SCHEMA_VERSION, PublicIds.next(), Times.now(),
+                        rental.getPublicId(), c.getPublicId(), c.getType().name(), devicePublicId, serial))
+                .toList();
+        checkpoints.deleteByRentalId(rental.getId());
+        rentals.deleteRow(rental.getId());
+        if (!rentals.existsByDevice_Id(deviceId) && !devices.hasPilotParticipant(deviceId)) {
+            devices.deleteRow(deviceId);
+        }
+        purged.forEach(events::publishPurged);
+    }
+
+    static boolean isTestSerial(String serial) {
+        return serial != null && serial.startsWith(TEST_SERIAL_PREFIX);
     }
 
     @Transactional

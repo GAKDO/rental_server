@@ -4,4 +4,6 @@ package com.gakdo.trace.rental.rental.application;
 public interface CheckpointEventPublisher {
 
     void publishStarted(CheckpointStartedEvent event);
+
+    void publishPurged(CheckpointPurgedEvent event);
 }

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import com.gakdo.trace.rental.rental.domain.Rental;
@@ -16,6 +17,13 @@ import jakarta.persistence.LockModeType;
 public interface RentalRepository extends JpaRepository<Rental, Long>, JpaSpecificationExecutor<Rental> {
 
     boolean existsByDevice_IdAndStatus(Long deviceId, RentalStatus status);
+
+    boolean existsByDevice_Id(Long deviceId);
+
+    /** 시험 렌탈 지우기. 시점을 먼저 지운 뒤 부른다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from Rental r where r.id = :id")
+    int deleteRow(Long id);
 
     @EntityGraph(attributePaths = {"checkpoints", "device"})
     Optional<Rental> findWithCheckpointsByPublicId(String publicId);

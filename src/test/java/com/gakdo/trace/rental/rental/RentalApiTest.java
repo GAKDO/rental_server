@@ -9,6 +9,8 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -209,5 +211,23 @@ class RentalApiTest extends WebTestBase {
         mvc.perform(post("/api/v1/rentals/missing00000000000001/close").with(admin()))
                 .andExpect(status().isNotFound());
         mvc.perform(post("/api/v1/rentals/short/close").with(admin())).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("관리자가 시험 렌탈을 지우면 204, 시험 데이터가 아니면 409 NOT_TEST_DATA")
+    void deleteTestRental() throws Exception {
+        mvc.perform(delete("/api/v1/rentals/" + DEVICE).with(admin())).andExpect(status().isNoContent());
+        verify(service).deleteTestRental(DEVICE);
+
+        doThrow(new DomainException(ErrorCode.NOT_TEST_DATA, "시험 아님")).when(service).deleteTestRental("Xs0HLv6QRbDILPWOcz5I2");
+        mvc.perform(delete("/api/v1/rentals/Xs0HLv6QRbDILPWOcz5I2").with(admin()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("NOT_TEST_DATA"));
+    }
+
+    @Test
+    @DisplayName("고객·부스는 렌탈을 지울 수 없다(403)")
+    void deleteNeedsAdmin() throws Exception {
+        mvc.perform(delete("/api/v1/rentals/" + DEVICE).with(customer())).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/rentals/" + DEVICE).with(booth())).andExpect(status().isForbidden());
     }
 }
