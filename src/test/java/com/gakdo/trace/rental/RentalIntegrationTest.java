@@ -310,6 +310,65 @@ class RentalIntegrationTest {
     }
 
     @Test
+    @DisplayName("부스 코드: 출고 전 발급은 409, 발급한 코드로 세 ID를 한 번만 받고, 다시 발급하면 앞 코드는 못 쓰며, 찍은 시점의 코드는 410")
+    void boothCodeFlow() throws Exception {
+        upsertModel("CODE-1");
+        String deviceId = registerDevice("TEST-CODE-1", "CODE-1");
+        String rentalId = openRental(deviceId);
+        mvc.perform(post("/api/v1/rentals/" + rentalId + "/booth-code").with(admin()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CHECKPOINT_ORDER_VIOLATION"));
+        String out = checkpointId(startCheckpoint(rentalId, "OUT").andExpect(status().isCreated()).andReturn());
+
+        String first = issueBoothCode(rentalId, out);
+        String second = issueBoothCode(rentalId, out);
+        redeem(first).andExpect(status().isGone()).andExpect(jsonPath("$.code").value("BOOTH_CODE_EXPIRED"));
+        redeem(second).andExpect(status().isOk())
+                .andExpect(jsonPath("$.rentalId").value(rentalId))
+                .andExpect(jsonPath("$.deviceId").value(deviceId))
+                .andExpect(jsonPath("$.serial").value("TEST-CODE-1"))
+                .andExpect(jsonPath("$.modelCode").value("CODE-1"))
+                .andExpect(jsonPath("$.checkpointId").value(out))
+                .andExpect(jsonPath("$.checkpointType").value("OUT"));
+        redeem(second).andExpect(status().isGone());
+        assertThat(jdbc.queryForObject("select count(*) from rental.booth_code where code_hash = ?", Integer.class,
+                sha256(second))).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from rental.booth_code where code_hash = ?", Integer.class,
+                second)).isZero(); // 원문은 저장하지 않는다
+
+        String third = issueBoothCode(rentalId, out);
+        publish(AmqpConfig.CAPTURE_UPLOADED, rentalId, out);
+        awaitStatus(rentalId, 0, "CAPTURED");
+        redeem(third).andExpect(status().isGone());
+        mvc.perform(post("/api/v1/rentals/" + rentalId + "/booth-code").with(admin()))
+                .andExpect(status().isConflict());
+
+        // 시험 렌탈을 지우면 코드도 함께 지워진다(외래 키 ON DELETE CASCADE)
+        mvc.perform(delete("/api/v1/rentals/" + rentalId).with(admin())).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("select count(*) from rental.booth_code", Integer.class)).isZero();
+    }
+
+    private String issueBoothCode(String rentalId, String checkpointId) throws Exception {
+        MvcResult result = mvc.perform(post("/api/v1/rentals/" + rentalId + "/booth-code").with(admin()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.checkpointId").value(checkpointId))
+                .andExpect(jsonPath("$.checkpointType").value("OUT"))
+                .andReturn();
+        String code = json.readTree(result.getResponse().getContentAsString()).path("code").asText();
+        assertThat(code).matches("[0-9]{6}");
+        return code;
+    }
+
+    private org.springframework.test.web.servlet.ResultActions redeem(String code) throws Exception {
+        return mvc.perform(post("/api/v1/rentals/booth-codes/redeem").with(booth()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"" + code + "\"}"));
+    }
+
+    private static String sha256(String value) throws Exception {
+        return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
     @DisplayName("시리얼 중복은 409, 없는 기종은 404, 모델명으로 3D 트윈 치수를 조회한다")
     void deviceAndModelRules() throws Exception {
         upsertModel("DIM-1");

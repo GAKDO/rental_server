@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.gakdo.trace.rental.common.domain.DomainException;
 import com.gakdo.trace.rental.common.domain.DomainException.FieldError;
 import com.gakdo.trace.rental.common.domain.ErrorCode;
+import com.gakdo.trace.rental.common.domain.RateLimitedException;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -40,6 +41,14 @@ public class ProblemAdvice {
     @ExceptionHandler(DomainException.class)
     ResponseEntity<ProblemDetail> domain(DomainException e, HttpServletRequest request) {
         return respond(e.code(), e.getMessage(), request, e.errors());
+    }
+
+    /** 429에는 다시 시도할 때까지의 초를 Retry-After로 싣는다(계약 TooManyRequests). */
+    @ExceptionHandler(RateLimitedException.class)
+    ResponseEntity<ProblemDetail> rateLimited(RateLimitedException e, HttpServletRequest request) {
+        return ResponseEntity.status(e.code().status())
+                .header("Retry-After", Long.toString(e.retryAfterSeconds()))
+                .body(ProblemFactory.of(e.code(), e.getMessage(), request.getRequestURI(), List.of()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
