@@ -51,7 +51,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/rentals/*").hasAnyRole(ADMIN, CUSTOMER)
                         .requestMatchers(HttpMethod.GET, "/api/v1/device-models/*").hasAnyRole(ADMIN, CUSTOMER)
                         .requestMatchers("/api/v1/rentals/**", "/api/v1/devices/**", "/api/v1/device-models/**",
-                                "/api/v1/rentals", "/api/v1/devices", "/api/v1/device-models").hasRole(ADMIN)
+                                "/api/v1/rentals", "/api/v1/devices", "/api/v1/device-models",
+                                "/api/v1/pilot/**").hasRole(ADMIN)
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(o -> o
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(roleConverter()))
