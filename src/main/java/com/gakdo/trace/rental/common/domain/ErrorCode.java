@@ -23,7 +23,8 @@ public enum ErrorCode {
     NOT_TEST_DATA(HttpStatus.CONFLICT, "시험 데이터만 지울 수 있습니다"),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다"),
     BOOTH_CODE_INVALID(HttpStatus.BAD_REQUEST, "부스 코드가 맞지 않습니다"),
-    BOOTH_CODE_EXPIRED(HttpStatus.GONE, "부스 코드가 만료되었습니다");
+    BOOTH_CODE_EXPIRED(HttpStatus.GONE, "부스 코드가 만료되었습니다"),
+    PILOT_ALIAS_EXISTS(HttpStatus.CONFLICT, "이미 쓰는 별칭입니다");
 
     private final HttpStatus status;
     private final String title;
