@@ -54,9 +54,11 @@ public class RentalController {
 
     @GetMapping
     public RentalPageResponse list(@RequestParam(required = false) RentalStatus status,
+            @RequestParam(required = false) @Pattern(regexp = PublicIds.PATTERN) String deviceId,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(required = false) String cursor, @AuthenticationPrincipal Jwt jwt) {
-        RentalService.Page page = service.list(status, Cursor.decode(cursor), limit, CurrentUser.from(jwt));
+        // deviceId(11/6 추가): 기기별 렌탈 이력. 역할별 거르기와 겹쳐 적용한다
+        RentalService.Page page = service.list(status, deviceId, Cursor.decode(cursor), limit, CurrentUser.from(jwt));
         return new RentalPageResponse(page.items().stream().map(RentalSummaryResponse::from).toList(),
                 page.nextCursor());
     }

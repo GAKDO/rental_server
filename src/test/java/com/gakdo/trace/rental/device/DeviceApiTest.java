@@ -51,6 +51,23 @@ class DeviceApiTest extends WebTestBase {
     private DeviceModelService models;
 
     @Test
+    @DisplayName("기기 상세: ADMIN은 계약 Device 형식을 받고, 없는 기기는 404 NOT_FOUND, CUSTOMER는 403")
+    void getDevice() throws Exception {
+        Device device = Fixtures.device("C02EXAMPLE01");
+        when(devices.get(device.getPublicId())).thenReturn(device);
+        when(devices.get("IPv6mcQOlTkKj6mOecAQt")).thenThrow(com.gakdo.trace.rental.common.domain.DomainException.notFound("기기"));
+        mvc.perform(get("/api/v1/devices/" + device.getPublicId()).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.serial").value("C02EXAMPLE01"))
+                .andExpect(jsonPath("$.modelName").value("MacBook Air (M2, 2022)"));
+        mvc.perform(get("/api/v1/devices/IPv6mcQOlTkKj6mOecAQt").with(admin()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        mvc.perform(get("/api/v1/devices/" + device.getPublicId()).with(customer()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("기기 등록은 201과 계약 Device 형식(deviceId는 publicId)을 돌려준다")
     void registerDevice() throws Exception {
         Device device = Fixtures.device("C02EXAMPLE01");

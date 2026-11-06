@@ -30,7 +30,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** /api/v1/devices — 기기 등록·검색·수정 (FR-RNT-01, FR-RNT-05). ADMIN만(SecurityConfig). */
+/** /api/v1/devices — 기기 등록·검색·상세·수정 (FR-RNT-01, FR-RNT-05). ADMIN만(SecurityConfig). */
 @RestController
 @RequestMapping("/api/v1/devices")
 public class DeviceController {
@@ -57,6 +57,11 @@ public class DeviceController {
             @RequestParam(required = false) String cursor) {
         DeviceService.Page page = service.search(modelCode, status, q, Cursor.decode(cursor), limit);
         return new DevicePageResponse(page.items().stream().map(DeviceResponse::from).toList(), page.nextCursor());
+    }
+
+    @GetMapping("/{deviceId}")
+    public DeviceResponse get(@PathVariable @Pattern(regexp = PublicIds.PATTERN) String deviceId) {
+        return DeviceResponse.from(service.get(deviceId));
     }
 
     @PatchMapping("/{deviceId}")
