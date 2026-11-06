@@ -59,7 +59,7 @@ class PilotApiTest extends WebTestBase {
     }
 
     @Test
-    @DisplayName("별칭이 겹치면 409 PILOT_ALIAS_EXISTS, 별칭 모양이 P숫자가 아니면 400이다")
+    @DisplayName("별칭이 겹치면 409 PILOT_ALIAS_EXISTS, 별칭 모양이 P01~P999가 아니면 400이다")
     void aliasRules() throws Exception {
         when(service.register(eq("P02"), eq(DEVICE), any()))
                 .thenThrow(new DomainException(ErrorCode.PILOT_ALIAS_EXISTS, "이미 쓰는 별칭입니다: P02"));
@@ -69,6 +69,8 @@ class PilotApiTest extends WebTestBase {
         mvc.perform(create("홍길동").with(admin()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(create("P00").with(admin())).andExpect(status().isBadRequest());
+        mvc.perform(create("P000").with(admin())).andExpect(status().isBadRequest());
     }
 
     @Test

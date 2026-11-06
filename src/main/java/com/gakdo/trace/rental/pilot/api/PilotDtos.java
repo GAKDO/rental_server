@@ -14,7 +14,7 @@ public final class PilotDtos {
     }
 
     public record PilotParticipantCreateRequest(
-            @NotNull @Pattern(regexp = "^P\\d{2,3}$") String alias,
+            @NotNull @Pattern(regexp = "^P(?!0{2,3}$)\\d{2,3}$") String alias,
             @NotNull @Pattern(regexp = "^[A-Za-z0-9_-]{21}$") String deviceId,
             @NotNull OffsetDateTime consentAt) {
     }
