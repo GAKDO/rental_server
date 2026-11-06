@@ -65,6 +65,12 @@ public class DeviceService {
         return device;
     }
 
+    /** 기기 상세(11/6 추가, 기기별 렌탈 이력 화면 머리글). 없으면 404. */
+    @Transactional(readOnly = true)
+    public Device get(String deviceId) {
+        return devices.findWithModelByPublicId(deviceId).orElseThrow(() -> DomainException.notFound("기기"));
+    }
+
     /** limit+1개를 읽어 다음 쪽이 있는지 안다. */
     @Transactional(readOnly = true)
     public Page search(String modelCode, DeviceStatus status, String q, Cursor cursor, int limit) {

@@ -47,14 +47,18 @@ public final class RentalDtos {
         }
     }
 
-    /** currentCheckpoint는 계약 1.0.x 추가 필드: 가장 늦게 시작한 시점, 없으면 null. */
+    /**
+     * currentCheckpoint는 계약 1.0.x 추가 필드: 가장 늦게 시작한 시점, 없으면 null.
+     * renterRef·startedAt·endedAt은 11/6 추가(기기별 렌탈 이력 표). 값이 없어도 null로 항상 보낸다.
+     */
     public record RentalSummaryResponse(String rentalId, String deviceId, String serial, String modelCode,
-            RentalStatus status, OffsetDateTime createdAt, CheckpointResponse currentCheckpoint) {
+            String renterRef, RentalStatus status, OffsetDateTime startedAt, OffsetDateTime endedAt,
+            OffsetDateTime createdAt, CheckpointResponse currentCheckpoint) {
 
         static RentalSummaryResponse from(Rental r) {
             return new RentalSummaryResponse(r.getPublicId(), r.getDevice().getPublicId(), r.getDevice().getSerial(),
-                    r.getDevice().getModel().getModelCode(), r.getStatus(), r.getCreatedAt(),
-                    r.currentCheckpoint().map(CheckpointResponse::from).orElse(null));
+                    r.getDevice().getModel().getModelCode(), r.getRenterRef(), r.getStatus(), r.getStartedAt(),
+                    r.getEndedAt(), r.getCreatedAt(), r.currentCheckpoint().map(CheckpointResponse::from).orElse(null));
         }
     }
 

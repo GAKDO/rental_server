@@ -404,6 +404,32 @@ class RentalIntegrationTest {
         assertThat(seen).containsExactly("PG-SER-4", "PG-SER-3", "PG-SER-2", "PG-SER-1", "PG-SER-0");
     }
 
+    @Test
+    @DisplayName("기기별 렌탈 이력: deviceId로 그 기기 렌탈만 최근 순으로, status와 겹쳐 거르고, 기기 상세는 ADMIN에게 보인다")
+    void deviceRentalHistory() throws Exception {
+        upsertModel("HIST-1");
+        String mine = registerDevice("SER-HIST-A", "HIST-1");
+        String other = registerDevice("SER-HIST-B", "HIST-1");
+        String rental = openRental(mine);
+        openRental(other);
+        mvc.perform(get("/api/v1/rentals?deviceId=" + mine).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].rentalId").value(rental))
+                .andExpect(jsonPath("$.items[0].renterRef").value("R-1"))
+                .andExpect(jsonPath("$.items[0].startedAt").isEmpty())
+                .andExpect(jsonPath("$.items[0].endedAt").isEmpty());
+        mvc.perform(get("/api/v1/rentals?deviceId=" + mine + "&status=CLOSED").with(admin()))
+                .andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/v1/rentals?deviceId=" + PublicIds.next()).with(admin()))
+                .andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/v1/devices/" + mine).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.serial").value("SER-HIST-A"));
+        mvc.perform(get("/api/v1/devices/" + PublicIds.next()).with(admin()))
+                .andExpect(status().isNotFound());
+    }
+
     private void upsertModel(String code) throws Exception {
         mvc.perform(put("/api/v1/device-models/" + code).with(admin()).contentType(MediaType.APPLICATION_JSON)
                 .content("""

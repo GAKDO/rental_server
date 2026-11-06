@@ -120,7 +120,7 @@ class RentalApiTest extends WebTestBase {
         Rental started = Rental.open(Fixtures.device("S1"), "R1");
         Checkpoint out = started.startCheckpoint(CheckpointType.OUT);
         Rental fresh = Rental.open(Fixtures.device("S2"), "R2");
-        when(service.list(isNull(), isNull(), eq(20), any()))
+        when(service.list(isNull(), isNull(), isNull(), eq(20), any()))
                 .thenReturn(new RentalService.Page(List.of(started, fresh), null));
         mvc.perform(get("/api/v1/rentals").with(admin()))
                 .andExpect(status().isOk())
@@ -128,6 +128,28 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.items[0].currentCheckpoint.type").value("OUT"))
                 .andExpect(jsonPath("$.items[0].currentCheckpoint.status").value("OPEN"))
                 .andExpect(jsonPath("$.items[1].currentCheckpoint").isEmpty());
+    }
+
+    @Test
+    @DisplayName("기기별 렌탈 이력: deviceId로 거르면 그 기기 렌탈만 받고, 항목에 대여자·출고 시작·종료 때가 있다")
+    void listByDevice() throws Exception {
+        Rental rental = Rental.open(Fixtures.device("C02EXAMPLE01"), "R-2026-0012");
+        rental.startCheckpoint(CheckpointType.OUT);
+        when(service.list(isNull(), eq(DEVICE), isNull(), eq(20), any()))
+                .thenReturn(new RentalService.Page(List.of(rental), null));
+        mvc.perform(get("/api/v1/rentals?deviceId=" + DEVICE).with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].renterRef").value("R-2026-0012"))
+                .andExpect(jsonPath("$.items[0].startedAt").isNotEmpty())
+                .andExpect(jsonPath("$.items[0].endedAt").isEmpty());
+        verify(service).list(isNull(), eq(DEVICE), isNull(), eq(20), any());
+    }
+
+    @Test
+    @DisplayName("기기별 렌탈 이력: deviceId 형식이 틀리면 400")
+    void listByDeviceInvalidId() throws Exception {
+        mvc.perform(get("/api/v1/rentals?deviceId=bad").with(admin())).andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -143,7 +165,7 @@ class RentalApiTest extends WebTestBase {
     @DisplayName("렌탈 목록: CUSTOMER는 rentals 클레임으로 걸러지고 요약에 시리얼·기종 코드가 있다")
     void listRentals() throws Exception {
         Rental rental = Rental.open(Fixtures.device("C02EXAMPLE01"), "R");
-        when(service.list(eq(RentalStatus.OPEN), isNull(), eq(20), any()))
+        when(service.list(eq(RentalStatus.OPEN), isNull(), isNull(), eq(20), any()))
                 .thenReturn(new RentalService.Page(List.of(rental), null));
         mvc.perform(get("/api/v1/rentals?status=OPEN").with(customer(rental.getPublicId())))
                 .andExpect(status().isOk())
@@ -151,7 +173,7 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.items[0].modelCode").value("MBA13-M2"))
                 .andExpect(jsonPath("$.nextCursor").isEmpty());
         ArgumentCaptor<CurrentUser> user = ArgumentCaptor.forClass(CurrentUser.class);
-        verify(service).list(eq(RentalStatus.OPEN), isNull(), eq(20), user.capture());
+        verify(service).list(eq(RentalStatus.OPEN), isNull(), isNull(), eq(20), user.capture());
         org.assertj.core.api.Assertions.assertThat(user.getValue().rentals()).containsExactly(rental.getPublicId());
     }
 
@@ -159,13 +181,13 @@ class RentalApiTest extends WebTestBase {
     @DisplayName("부스 토큰은 렌탈 목록만 볼 수 있고, 렌탈 상세와 시점 시작은 403")
     void boothListsRentals() throws Exception {
         Rental rental = Rental.open(Fixtures.device("C02EXAMPLE01"), "R");
-        when(service.list(isNull(), isNull(), eq(20), any()))
+        when(service.list(isNull(), isNull(), isNull(), eq(20), any()))
                 .thenReturn(new RentalService.Page(List.of(rental), null));
         mvc.perform(get("/api/v1/rentals").with(booth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].serial").value("C02EXAMPLE01"));
         ArgumentCaptor<CurrentUser> user = ArgumentCaptor.forClass(CurrentUser.class);
-        verify(service).list(isNull(), isNull(), eq(20), user.capture());
+        verify(service).list(isNull(), isNull(), isNull(), eq(20), user.capture());
         org.assertj.core.api.Assertions.assertThat(user.getValue().isBooth()).isTrue();
 
         mvc.perform(get("/api/v1/rentals/" + DEVICE).with(booth())).andExpect(status().isForbidden());

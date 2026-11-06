@@ -73,12 +73,12 @@ public class RentalService {
     }
 
     @Transactional(readOnly = true)
-    public Page list(RentalStatus status, Cursor cursor, int limit, CurrentUser user) {
+    public Page list(RentalStatus status, String deviceId, Cursor cursor, int limit, CurrentUser user) {
         // 부스는 상태를 고를 수 없고 진행 중(OPEN) 렌탈 전체를 본다(부스 태블릿 기기 목록, contracts listRentals)
         RentalStatus effective = user.isBooth() ? RentalStatus.OPEN : status;
         Set<String> scope = user.isAdmin() || user.isBooth() ? null : user.rentals();
         List<Rental> rows = rentals.findBy(
-                RentalSpecs.search(effective, scope, cursor),
+                RentalSpecs.search(effective, deviceId, scope, cursor),
                 query -> query.sortBy(NEWEST_FIRST).limit(limit + 1).all());
         boolean more = rows.size() > limit;
         List<Rental> items = more ? rows.subList(0, limit) : rows;
