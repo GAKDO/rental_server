@@ -157,6 +157,12 @@ class RentalIntegrationTest {
                 .andExpect(jsonPath("$.items[?(@.rentalId == '" + rentalId + "')]").isEmpty());
 
         assertClosesAfterReturn(rentalId);
+        // 공개 보유 기기 목록(11/8): 로그인 없이, 봉인된 세 시점이 최근 것부터, 시리얼 없이
+        mvc.perform(get("/api/v1/catalog/devices"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.deviceId == '" + deviceId + "')].checkpoints[0].checkpointId").value(ret))
+                .andExpect(jsonPath("$.items[?(@.deviceId == '" + deviceId + "')].available").value(true))
+                .andExpect(jsonPath("$.items[?(@.deviceId == '" + deviceId + "')].serial").isEmpty());
 
         openRental(deviceId);
     }

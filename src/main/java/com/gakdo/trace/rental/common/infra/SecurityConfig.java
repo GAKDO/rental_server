@@ -44,6 +44,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/rentals/ping").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/health", "/actuator/info").permitAll()
+                        // 공개 보유 기기 목록(11/8): 로그인 없이. 시리얼·대여자는 응답에 없다
+                        .requestMatchers(HttpMethod.GET, "/api/v1/catalog/devices").permitAll()
                         // 부스 태블릿의 "검사 기다리는 기기" 목록(11/3 MVP): 목록만 열고, 결과는 서비스에서 OPEN으로 고정한다
                         .requestMatchers(HttpMethod.GET, "/api/v1/rentals").hasAnyRole(ADMIN, CUSTOMER, BOOTH)
                         // 부스 6자리 코드로 기기·렌탈·시점 ID 받기(11/4). 아래 ADMIN 규칙보다 먼저 둔다
