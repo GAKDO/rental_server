@@ -137,21 +137,39 @@ public class RentalService {
             throw new DomainException(ErrorCode.NOT_TEST_DATA, "기기 시리얼이 " + TEST_SERIAL_PREFIX + "로 시작하는 렌탈만 지울 수 있습니다.");
         }
         Long deviceId = device.getId();
-        String devicePublicId = device.getPublicId();
-        String serial = device.getSerial();
-        List<CheckpointPurgedEvent> purged = rental.getCheckpoints().stream()
-                .map(c -> new CheckpointPurgedEvent(CheckpointPurgedEvent.SCHEMA_VERSION, PublicIds.next(), Times.now(),
-                        rental.getPublicId(), c.getPublicId(), c.getType().name(), devicePublicId, serial))
-                .toList();
-        checkpoints.deleteByRentalId(rental.getId());
-        rentals.deleteRow(rental.getId());
+        purge(List.of(rental), device);
         if (!rentals.existsByDevice_Id(deviceId) && !devices.hasPilotParticipant(deviceId)) {
             devices.deleteRow(deviceId);
+        }
+    }
+
+    /**
+     * 시험 기기 지우기에서 부른다(11/10). 그 기기의 렌탈을 시험 렌탈 지우기와 같은 방식으로 모두 지운다.
+     * 기기 행은 부른 쪽이 지운다. 시리얼 확인도 부른 쪽 책임이다.
+     */
+    @Transactional
+    public void purgeAllOf(Device device) {
+        purge(rentals.findWithCheckpointsByDevice_Id(device.getId()), device);
+    }
+
+    /** 이벤트를 먼저 다 만들어 둔 뒤 지운다(대량 삭제가 영속성 컨텍스트를 비워 지연 로딩이 끊기기 때문). */
+    private void purge(List<Rental> targets, Device device) {
+        String devicePublicId = device.getPublicId();
+        String serial = device.getSerial();
+        List<CheckpointPurgedEvent> purged = targets.stream()
+                .flatMap(r -> r.getCheckpoints().stream()
+                        .map(c -> new CheckpointPurgedEvent(CheckpointPurgedEvent.SCHEMA_VERSION, PublicIds.next(), Times.now(),
+                                r.getPublicId(), c.getPublicId(), c.getType().name(), devicePublicId, serial)))
+                .toList();
+        List<Long> ids = targets.stream().map(Rental::getId).toList();
+        for (Long id : ids) {
+            checkpoints.deleteByRentalId(id);
+            rentals.deleteRow(id);
         }
         purged.forEach(events::publishPurged);
     }
 
-    static boolean isTestSerial(String serial) {
+    public static boolean isTestSerial(String serial) {
         return serial != null && serial.startsWith(TEST_SERIAL_PREFIX);
     }
 

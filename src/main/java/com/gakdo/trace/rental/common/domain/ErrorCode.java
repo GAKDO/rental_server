@@ -21,6 +21,8 @@ public enum ErrorCode {
     DEVICE_HAS_OPEN_RENTAL(HttpStatus.CONFLICT, "진행 중인 렌탈이 있는 기기입니다"),
     DEVICE_STATUS_TRANSITION_INVALID(HttpStatus.CONFLICT, "폐기한 기기는 수리 중으로만 되돌릴 수 있습니다"),
     NOT_TEST_DATA(HttpStatus.CONFLICT, "시험 데이터만 지울 수 있습니다"),
+    DEVICE_IN_USE(HttpStatus.CONFLICT, "이력이 있는 기기는 지울 수 없습니다"),
+    DEVICE_MODEL_IN_USE(HttpStatus.CONFLICT, "기기가 등록된 기종은 지울 수 없습니다"),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다"),
     BOOTH_CODE_INVALID(HttpStatus.BAD_REQUEST, "부스 코드가 맞지 않습니다"),
     BOOTH_CODE_EXPIRED(HttpStatus.GONE, "부스 코드가 만료되었습니다"),

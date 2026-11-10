@@ -1,5 +1,6 @@
 package com.gakdo.trace.rental.rental.infra;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -24,6 +25,10 @@ public interface RentalRepository extends JpaRepository<Rental, Long>, JpaSpecif
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from Rental r where r.id = :id")
     int deleteRow(Long id);
+
+    /** 시험 기기 지우기(11/10): 그 기기의 렌탈 전부와 시점 */
+    @EntityGraph(attributePaths = {"checkpoints", "device"})
+    List<Rental> findWithCheckpointsByDevice_Id(Long deviceId);
 
     @EntityGraph(attributePaths = {"checkpoints", "device"})
     Optional<Rental> findWithCheckpointsByPublicId(String publicId);

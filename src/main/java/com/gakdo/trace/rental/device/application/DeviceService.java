@@ -18,10 +18,11 @@ import com.gakdo.trace.rental.device.infra.DeviceRepository;
 import com.gakdo.trace.rental.device.infra.DeviceSpecs;
 import com.gakdo.trace.rental.devicemodel.domain.DeviceModel;
 import com.gakdo.trace.rental.devicemodel.infra.DeviceModelRepository;
+import com.gakdo.trace.rental.rental.application.RentalService;
 import com.gakdo.trace.rental.rental.domain.RentalStatus;
 import com.gakdo.trace.rental.rental.infra.RentalRepository;
 
-/** 기기 등록·수정·검색 (FR-RNT-01, FR-RNT-05). 삭제는 없다. */
+/** 기기 등록·수정·검색·지우기 (FR-RNT-01, FR-RNT-05). 지우기는 이력 없는 기기와 TEST- 시험 기기만(11/10). */
 @Service
 public class DeviceService {
 
@@ -30,11 +31,14 @@ public class DeviceService {
     private final DeviceRepository devices;
     private final DeviceModelRepository models;
     private final RentalRepository rentals;
+    private final RentalService rentalService;
 
-    public DeviceService(DeviceRepository devices, DeviceModelRepository models, RentalRepository rentals) {
+    public DeviceService(DeviceRepository devices, DeviceModelRepository models, RentalRepository rentals,
+            RentalService rentalService) {
         this.devices = devices;
         this.models = models;
         this.rentals = rentals;
+        this.rentalService = rentalService;
     }
 
     @Transactional
@@ -65,6 +69,26 @@ public class DeviceService {
         return device;
     }
 
+    /**
+     * 기기 지우기(11/10 민서 요청). 시리얼이 TEST-인 시험 기기는 렌탈도 시험 렌탈 지우기처럼 함께 지운다.
+     * 실제 기기는 렌탈 이력이 있으면 검사 기록·봉인 증거가 묶여 있어 지우지 않는다(폐기로 두면 된다).
+     * 파일럿 참가 기록이 있으면 시험 기기라도 지우지 않는다.
+     */
+    @Transactional
+    public void delete(String deviceId) {
+        Device device = devices.lockByPublicId(deviceId).orElseThrow(() -> DomainException.notFound("기기"));
+        Long id = device.getId();
+        if (devices.hasPilotParticipant(id)) {
+            throw inUse("파일럿 참가 기록이 있는 기기는 지울 수 없습니다. 폐기로 바꿔 주세요.");
+        }
+        if (RentalService.isTestSerial(device.getSerial())) {
+            rentalService.purgeAllOf(device);
+        } else if (rentals.existsByDevice_Id(id)) {
+            throw inUse("렌탈 이력이 있는 기기는 지울 수 없습니다. 폐기로 바꿔 주세요.");
+        }
+        devices.deleteRow(id);
+    }
+
     /** 기기 상세(11/6 추가, 기기별 렌탈 이력 화면 머리글). 없으면 404. */
     @Transactional(readOnly = true)
     public Device get(String deviceId) {
@@ -91,6 +115,10 @@ public class DeviceService {
         public Page(List<Device> items, String nextCursor) {
             this(items, nextCursor, items.size());
         }
+    }
+
+    private static DomainException inUse(String detail) {
+        return new DomainException(ErrorCode.DEVICE_IN_USE, detail);
     }
 
     private static DomainException serialExists() {

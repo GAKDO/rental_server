@@ -17,6 +17,9 @@ public interface DeviceRepository extends JpaRepository<Device, Long>, JpaSpecif
 
     boolean existsBySerial(String serial);
 
+    /** 기종 지우기 전 확인(11/10) */
+    long countByModel_Id(Long modelId);
+
     @EntityGraph(attributePaths = "model")
     Optional<Device> findWithModelByPublicId(String publicId);
 
