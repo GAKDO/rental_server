@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -255,5 +256,25 @@ class DeviceApiTest extends WebTestBase {
                 .content("{\"name\":\"X\",\"formFactor\":\"CLAMSHELL\",\"spec\":{\"gpu\":\"" + "G".repeat(129)
                         + "\"},\"dimensions\":{\"widthMm\":1,\"depthMm\":1,\"baseHMm\":1,\"lidHMm\":1}}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("기기·기종 지우기: ADMIN은 204, 이력이 있으면 409(DEVICE_IN_USE·DEVICE_MODEL_IN_USE), CUSTOMER는 403")
+    void deleteDeviceAndModel() throws Exception {
+        mvc.perform(delete("/api/v1/devices/aAXQFO2Vz6ZTFbPctC2dq").with(admin())).andExpect(status().isNoContent());
+        org.mockito.Mockito.verify(devices).delete("aAXQFO2Vz6ZTFbPctC2dq");
+        org.mockito.Mockito.doThrow(new DomainException(ErrorCode.DEVICE_IN_USE, "이력 있음")).when(devices).delete("Xs0HLv6QRbDILPWOcz5I2");
+        mvc.perform(delete("/api/v1/devices/Xs0HLv6QRbDILPWOcz5I2").with(admin()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DEVICE_IN_USE"));
+
+        mvc.perform(delete("/api/v1/device-models/TEST-MODEL").with(admin())).andExpect(status().isNoContent());
+        org.mockito.Mockito.verify(models).delete("TEST-MODEL");
+        org.mockito.Mockito.doThrow(new DomainException(ErrorCode.DEVICE_MODEL_IN_USE, "기기 있음")).when(models).delete("MBA13-M2");
+        mvc.perform(delete("/api/v1/device-models/MBA13-M2").with(admin()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DEVICE_MODEL_IN_USE"));
+
+        mvc.perform(delete("/api/v1/devices/aAXQFO2Vz6ZTFbPctC2dq").with(customer())).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/device-models/TEST-MODEL").with(customer())).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/device-models/bad code").with(admin())).andExpect(status().isBadRequest());
     }
 }

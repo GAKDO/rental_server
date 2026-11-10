@@ -4,6 +4,7 @@ package com.gakdo.trace.rental.device.api;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -70,5 +72,12 @@ public class DeviceController {
             @AuthenticationPrincipal Jwt jwt) {
         return DeviceResponse.from(
                 service.change(deviceId, DeviceUpdateParser.parse(body), CurrentUser.from(jwt).accountId()));
+    }
+
+    /** 기기 지우기(11/10). 이력 없는 기기·TEST- 시험 기기만, 아니면 409 DEVICE_IN_USE. ADMIN만(SecurityConfig). */
+    @DeleteMapping("/{deviceId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable @Pattern(regexp = PublicIds.PATTERN) String deviceId) {
+        service.delete(deviceId);
     }
 }
