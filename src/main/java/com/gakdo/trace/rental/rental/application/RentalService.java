@@ -19,6 +19,7 @@ import com.gakdo.trace.rental.device.infra.DeviceRepository;
 import com.gakdo.trace.rental.rental.domain.Checkpoint;
 import com.gakdo.trace.rental.rental.domain.CheckpointType;
 import com.gakdo.trace.rental.rental.domain.Rental;
+import com.gakdo.trace.rental.rental.domain.RentalDetails;
 import com.gakdo.trace.rental.rental.domain.RentalStatus;
 import com.gakdo.trace.rental.rental.infra.CheckpointRepository;
 import com.gakdo.trace.rental.rental.infra.RentalRepository;
@@ -50,9 +51,12 @@ public class RentalService {
      * 기기 행을 잠근 뒤 상태·진행 중 렌탈을 본다. 잠금을 놓친 경쟁도 ux_rental_open_device가 막아 409로 바꾼다.
      */
     @Transactional
-    public Rental open(String deviceId, String renterRef) {
+    public Rental open(String deviceId, String renterRef, RentalDetails details) {
         Device device = devices.lockByPublicId(deviceId).orElseThrow(() -> DomainException.notFound("기기"));
         Rental rental = Rental.open(device, renterRef);
+        if (details != null && !details.isEmpty()) {
+            rental.updateDetails(details);
+        }
         if (rentals.existsByDevice_IdAndStatus(device.getId(), RentalStatus.OPEN)) {
             throw openExists();
         }
@@ -72,20 +76,33 @@ public class RentalService {
         return rental;
     }
 
+    /** 고객 이름·반납 예정일·메모 고치기(11/10, ADMIN). 상세와 같은 모양으로 돌려준다. */
+    @Transactional
+    public Rental updateDetails(String rentalId, RentalDetails details) {
+        Rental rental = rentals.findWithCheckpointsByPublicId(rentalId).orElseThrow(() -> DomainException.notFound("렌탈"));
+        rental.updateDetails(details);
+        return rental;
+    }
+
+    /**
+     * @param problem true면 지금 시점 등급이 B·C·D인 렌탈만(11/10 "문제 있는 검사만 보기")
+     */
     @Transactional(readOnly = true)
-    public Page list(RentalStatus status, String deviceId, Cursor cursor, int limit, CurrentUser user) {
+    public Page list(RentalStatus status, String deviceId, boolean problem, Cursor cursor, int limit, CurrentUser user) {
         // 부스는 상태를 고를 수 없고 진행 중(OPEN) 렌탈 전체를 본다(부스 태블릿 기기 목록, contracts listRentals)
         RentalStatus effective = user.isBooth() ? RentalStatus.OPEN : status;
         Set<String> scope = user.isAdmin() || user.isBooth() ? null : user.rentals();
         List<Rental> rows = rentals.findBy(
-                RentalSpecs.search(effective, deviceId, scope, cursor),
+                RentalSpecs.search(effective, deviceId, problem, scope, cursor),
                 query -> query.sortBy(NEWEST_FIRST).limit(limit + 1).all());
+        // "총 N건"(11/10): 커서 없이 같은 조건으로 센다
+        long total = rentals.count(RentalSpecs.search(effective, deviceId, problem, scope, null));
         boolean more = rows.size() > limit;
         List<Rental> items = more ? rows.subList(0, limit) : rows;
         // 목록의 지금 시점(currentCheckpoint)을 트랜잭션 안에서 읽어 둔다(@BatchSize로 한 번에)
         items.forEach(Rental::currentCheckpoint);
         String next = more ? new Cursor(items.get(limit - 1).getCreatedAt(), items.get(limit - 1).getPublicId()).encode() : null;
-        return new Page(List.copyOf(items), next);
+        return new Page(List.copyOf(items), next, total);
     }
 
     @Transactional
@@ -141,7 +158,12 @@ public class RentalService {
         rentals.lockByPublicId(rentalId).orElseThrow(() -> DomainException.notFound("렌탈")).close();
     }
 
-    public record Page(List<Rental> items, String nextCursor) {
+    /** @param totalCount 같은 조건에 맞는 전체 건수 */
+    public record Page(List<Rental> items, String nextCursor, long totalCount) {
+
+        public Page(List<Rental> items, String nextCursor) {
+            this(items, nextCursor, items.size());
+        }
     }
 
     private static DomainException openExists() {

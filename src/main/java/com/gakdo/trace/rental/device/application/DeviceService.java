@@ -80,10 +80,17 @@ public class DeviceService {
         List<Device> items = more ? rows.subList(0, limit) : rows;
         String next = more ? new Cursor(items.get(limit - 1).getCreatedAt(), items.get(limit - 1).getPublicId()).encode() : null;
         items.forEach(d -> d.getModel().getName()); // 트랜잭션 안에서 기종을 읽어 둔다
-        return new Page(List.copyOf(items), next);
+        // "총 N건"(11/10): 커서 없이 같은 조건으로 센다
+        long total = devices.count(DeviceSpecs.search(modelCode, status, q, null));
+        return new Page(List.copyOf(items), next, total);
     }
 
-    public record Page(List<Device> items, String nextCursor) {
+    /** @param totalCount 같은 조건에 맞는 전체 건수 */
+    public record Page(List<Device> items, String nextCursor, long totalCount) {
+
+        public Page(List<Device> items, String nextCursor) {
+            this(items, nextCursor, items.size());
+        }
     }
 
     private static DomainException serialExists() {

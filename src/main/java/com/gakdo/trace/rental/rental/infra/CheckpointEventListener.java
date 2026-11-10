@@ -54,7 +54,9 @@ public class CheckpointEventListener {
         String rentalId = publicId(event, "rentalId");
         String checkpointId = publicId(event, "checkpointId");
         OffsetDateTime occurredAt = occurredAt(event);
-        CheckpointAdvance result = progress.advance(rentalId, checkpointId, next, occurredAt);
+        // 등급 이벤트면 등급도 남긴다("문제 있는 검사만 보기", 11/10). 다른 이벤트는 null
+        String grade = next == CheckpointStatus.GRADED ? event.path("grade").asText(null) : null;
+        CheckpointAdvance result = progress.advance(rentalId, checkpointId, next, occurredAt, grade);
         if (result.isMismatch()) {
             log.error("렌탈·시점 짝이 맞지 않는 이벤트를 DLQ로 보냅니다: {} eventId={} rentalId={} checkpointId={} 사유={}",
                     routingKey, event.path("eventId").asText(), rentalId, checkpointId, result);

@@ -438,6 +438,78 @@ class RentalIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    @DisplayName("문제 있는 검사만 보기: 지금 시점 등급이 B·C·D인 렌탈만 나오고 totalCount가 같은 조건의 건수다. 다음 시점을 시작하면 빠진다")
+    void problemFilterAndTotalCount() throws Exception {
+        upsertModel("PROB-1");
+        String deviceId = registerDevice("SER-PROB-1", "PROB-1");
+        String rentalId = openRental(deviceId);
+        String out = checkpointId(startCheckpoint(rentalId, "OUT").andExpect(status().isCreated()).andReturn());
+        String onlyThis = "/api/v1/rentals?deviceId=" + deviceId + "&problem=true";
+        mvc.perform(get(onlyThis).with(admin()))
+                .andExpect(jsonPath("$.items.length()").value(0)).andExpect(jsonPath("$.totalCount").value(0));
+
+        publishGraded(rentalId, out, "C");
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> mvc.perform(get(onlyThis).with(admin()))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].rentalId").value(rentalId))
+                .andExpect(jsonPath("$.totalCount").value(1)));
+        mvc.perform(get("/api/v1/rentals?deviceId=" + deviceId + "&limit=1").with(admin()))
+                .andExpect(jsonPath("$.totalCount").value(1));
+
+        publish(AmqpConfig.RECORD_SEALED, rentalId, out);
+        awaitStatus(rentalId, 0, "SEALED");
+        String rcv = checkpointId(startCheckpoint(rentalId, "RCV").andExpect(status().isCreated()).andReturn());
+        mvc.perform(get(onlyThis).with(admin())).andExpect(jsonPath("$.items.length()").value(0));
+        publishGraded(rentalId, rcv, "A");
+        publishGraded(rentalId, rcv, "D"); // 다시 검수하면 마지막 등급으로
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> mvc.perform(get(onlyThis).with(admin()))
+                .andExpect(jsonPath("$.items.length()").value(1)));
+    }
+
+    @Test
+    @DisplayName("렌탈 고객 이름·반납 예정일·메모: 생성 때 받고 PATCH로 고치며, 고객에게는 메모가 null이고 고객은 고칠 수 없다")
+    void rentalDetails() throws Exception {
+        upsertModel("DET-1");
+        String deviceId = registerDevice("SER-DET-1", "DET-1");
+        MvcResult created = mvc.perform(post("/api/v1/rentals").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"deviceId\":\"" + deviceId + "\",\"renterRef\":\"R-1\",\"customerName\":\" 김고객 \","
+                        + "\"dueAt\":\"2026-11-19\",\"note\":\"충전기 함께\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.customerName").value("김고객"))
+                .andExpect(jsonPath("$.dueAt").value("2026-11-19"))
+                .andExpect(jsonPath("$.note").value("충전기 함께"))
+                .andReturn();
+        String rentalId = json.readTree(created.getResponse().getContentAsString()).path("rentalId").asText();
+
+        mvc.perform(patch("/api/v1/rentals/" + rentalId).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"dueAt\":\"2026-11-20\",\"note\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.customerName").value("김고객"))
+                .andExpect(jsonPath("$.dueAt").value("2026-11-20"))
+                .andExpect(jsonPath("$.note").isEmpty());
+        mvc.perform(patch("/api/v1/rentals/" + rentalId).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"note\":\"메모\"}")).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/rentals/" + rentalId).with(customer(rentalId)))
+                .andExpect(jsonPath("$.customerName").value("김고객"))
+                .andExpect(jsonPath("$.note").isEmpty());
+        mvc.perform(get("/api/v1/rentals?deviceId=" + deviceId).with(admin()))
+                .andExpect(jsonPath("$.items[0].customerName").value("김고객"));
+        mvc.perform(patch("/api/v1/rentals/" + rentalId).with(customer(rentalId)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"note\":\"x\"}")).andExpect(status().isForbidden());
+    }
+
+    private void publishGraded(String rentalId, String checkpointId, String grade) {
+        String body = """
+                {"schemaVersion":"1.3","eventId":"%s","occurredAt":"2026-11-09T14:05:12+09:00",
+                 "rentalId":"%s","checkpointId":"%s","grade":"%s"}
+                """.formatted(PublicIds.next(), rentalId, checkpointId, grade);
+        MessageProperties props = new MessageProperties();
+        props.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+        rabbit.send(AmqpConfig.EXCHANGE, AmqpConfig.CHECKPOINT_GRADED,
+                MessageBuilder.withBody(body.getBytes(java.nio.charset.StandardCharsets.UTF_8)).andProperties(props).build());
+    }
+
     private void upsertModel(String code) throws Exception {
         mvc.perform(put("/api/v1/device-models/" + code).with(admin()).contentType(MediaType.APPLICATION_JSON)
                 .content("""

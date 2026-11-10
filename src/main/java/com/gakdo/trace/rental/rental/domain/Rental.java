@@ -1,5 +1,6 @@
 package com.gakdo.trace.rental.rental.domain;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -55,6 +56,18 @@ public class Rental {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private RentalStatus status;
+
+    /** 고객 이름(11/10, 선택). 개인정보라 관리자·본인에게만 보인다. */
+    @Column(name = "customer_name", length = 64)
+    private String customerName;
+
+    /** 반납 예정일(11/10, 선택, 날짜만) */
+    @Column(name = "due_at")
+    private LocalDate dueAt;
+
+    /** 관리자 메모(11/10, 선택). 관리자에게만 보인다. */
+    @Column(length = 500)
+    private String note;
 
     @Column(name = "started_at")
     private OffsetDateTime startedAt;
@@ -114,6 +127,23 @@ public class Rental {
         }
         updatedAt = Times.now();
         return checkpoint;
+    }
+
+    /**
+     * 고객 이름·반납 예정일·메모를 바꾼다(11/10, contracts #23-2). 칸이 null이면 그대로, Change 값이 null이면 비운다.
+     * 렌탈 상태·시점과 관계없다(종료된 렌탈도 메모를 고칠 수 있다).
+     */
+    public void updateDetails(RentalDetails details) {
+        if (details.customerName() != null) {
+            customerName = details.customerName().value();
+        }
+        if (details.dueAt() != null) {
+            dueAt = details.dueAt().value();
+        }
+        if (details.note() != null) {
+            note = details.note().value();
+        }
+        updatedAt = Times.now();
     }
 
     /** 시점이 봉인되면 부른다. 반납(RET)이 봉인되면 RETURNED. */
@@ -190,5 +220,17 @@ public class Rental {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getCustomerName() {
+        return customerName;
+    }
+
+    public LocalDate getDueAt() {
+        return dueAt;
+    }
+
+    public String getNote() {
+        return note;
     }
 }

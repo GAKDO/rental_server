@@ -17,6 +17,7 @@ import com.gakdo.trace.rental.rental.domain.Checkpoint;
 import com.gakdo.trace.rental.rental.domain.CheckpointStatus;
 import com.gakdo.trace.rental.rental.domain.CheckpointType;
 import com.gakdo.trace.rental.rental.domain.Rental;
+import com.gakdo.trace.rental.rental.domain.RentalDetails;
 import com.gakdo.trace.rental.rental.domain.RentalStatus;
 import com.gakdo.trace.rental.support.Fixtures;
 
@@ -136,5 +137,32 @@ class RentalDomainTest {
 
     private static void assertCode(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, ErrorCode code) {
         assertThatThrownBy(call).isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.code()).isEqualTo(code));
+    }
+
+    @Test
+    @DisplayName("등급 이벤트의 등급을 남기고 다시 오면 마지막 값으로 바꾸며, A~D가 아니면 무시한다")
+    void recordGrade() {
+        Rental rental = Rental.open(com.gakdo.trace.rental.support.Fixtures.device("G1"), "R");
+        Checkpoint out = rental.startCheckpoint(CheckpointType.OUT);
+        org.assertj.core.api.Assertions.assertThat(out.recordGrade("B")).isTrue();
+        org.assertj.core.api.Assertions.assertThat(out.recordGrade("B")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(out.recordGrade("Z")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(out.recordGrade(null)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(out.recordGrade("A")).isTrue();
+        org.assertj.core.api.Assertions.assertThat(out.getGrade()).isEqualTo("A");
+    }
+
+    @Test
+    @DisplayName("고객 이름·메모는 앞뒤 공백을 지우고 빈 값은 비우며, 고치기에서 생략한 칸은 그대로 둔다")
+    void updateDetails() {
+        Rental rental = Rental.open(com.gakdo.trace.rental.support.Fixtures.device("G2"), "R");
+        rental.updateDetails(RentalDetails.of("  김고객 ", java.time.LocalDate.parse("2026-11-19"), "   "));
+        org.assertj.core.api.Assertions.assertThat(rental.getCustomerName()).isEqualTo("김고객");
+        org.assertj.core.api.Assertions.assertThat(rental.getNote()).isNull();
+        rental.updateDetails(new RentalDetails(null, new RentalDetails.Change<>(null), RentalDetails.Change.text("메모")));
+        org.assertj.core.api.Assertions.assertThat(rental.getCustomerName()).isEqualTo("김고객");
+        org.assertj.core.api.Assertions.assertThat(rental.getDueAt()).isNull();
+        org.assertj.core.api.Assertions.assertThat(rental.getNote()).isEqualTo("메모");
+        org.assertj.core.api.Assertions.assertThat(RentalDetails.NONE.isEmpty()).isTrue();
     }
 }

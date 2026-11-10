@@ -47,6 +47,10 @@ public class Checkpoint {
     @Column(name = "occurred_at")
     private OffsetDateTime occurredAt;
 
+    /** 마지막 등급(trace.checkpoint.graded). 아직 없으면 null. "문제 있는 검사만 보기" 거르기에 쓴다(11/10). */
+    @Column(length = 1)
+    private String grade;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -82,6 +86,30 @@ public class Checkpoint {
         status = next;
         updatedAt = Times.now();
         return true;
+    }
+
+    /**
+     * 등급 이벤트의 등급을 남긴다. 사람 검수를 다시 마치면 등급이 다시 올 수 있어 마지막 값으로 바꾼다.
+     * A~D가 아니면(없거나 깨진 값) 그대로 둔다.
+     *
+     * @return 바뀌었으면 true
+     */
+    public boolean recordGrade(String value) {
+        if (value == null || !VALID_GRADES.contains(value) || value.equals(grade)) {
+            return false;
+        }
+        grade = value;
+        updatedAt = Times.now();
+        return true;
+    }
+
+    /** 등급 B·C·D = 문제 있음(관리자 화면의 판정과 같다). */
+    public static final java.util.Set<String> PROBLEM_GRADES = java.util.Set.of("B", "C", "D");
+
+    private static final java.util.Set<String> VALID_GRADES = java.util.Set.of("A", "B", "C", "D");
+
+    public String getGrade() {
+        return grade;
     }
 
     public boolean isSealed() {
