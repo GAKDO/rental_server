@@ -79,6 +79,8 @@ public class RentalService {
     /** 고객 이름·반납 예정일·메모 고치기(11/10, ADMIN). 상세와 같은 모양으로 돌려준다. */
     @Transactional
     public Rental updateDetails(String rentalId, RentalDetails details) {
+        // 종료·시점 진행과 동시에 저장돼 서로 덮어쓰지 않게 먼저 잠근다
+        rentals.lockByPublicId(rentalId).orElseThrow(() -> DomainException.notFound("렌탈"));
         Rental rental = rentals.findWithCheckpointsByPublicId(rentalId).orElseThrow(() -> DomainException.notFound("렌탈"));
         rental.updateDetails(details);
         return rental;
