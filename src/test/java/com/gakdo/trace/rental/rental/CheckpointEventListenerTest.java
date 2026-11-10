@@ -69,11 +69,12 @@ class CheckpointEventListenerTest {
     @Test
     @DisplayName("렌탈·시점 짝이 rental-server 기록과 다르거나 모르는 시점이면 재시도 없이 DLX로 보낸다")
     void mismatchedPairRejected() {
+        String body = event();
         when(progress.advance(any(), any(), any(), any(), any())).thenReturn(CheckpointAdvance.RENTAL_MISMATCH);
-        assertThatThrownBy(() -> listener.handle("trace.capture.uploaded", event()))
+        assertThatThrownBy(() -> listener.handle("trace.capture.uploaded", body))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
         when(progress.advance(any(), any(), any(), any(), any())).thenReturn(CheckpointAdvance.UNKNOWN_CHECKPOINT);
-        assertThatThrownBy(() -> listener.handle("trace.checkpoint.graded", event()))
+        assertThatThrownBy(() -> listener.handle("trace.checkpoint.graded", body))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
     }
 

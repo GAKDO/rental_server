@@ -33,10 +33,10 @@ class CheckpointProgressServiceTest {
         Checkpoint out = rental.startCheckpoint(CheckpointType.OUT);
         when(checkpoints.lockByPublicId(out.getPublicId())).thenReturn(Optional.of(out));
 
-        assertThat(service.advance(rental.getPublicId(), out.getPublicId(), CheckpointStatus.CAPTURED, AT))
+        assertThat(service.advance(rental.getPublicId(), out.getPublicId(), CheckpointStatus.CAPTURED, AT, null))
                 .isEqualTo(CheckpointAdvance.CHANGED);
         assertThat(out.getStatus()).isEqualTo(CheckpointStatus.CAPTURED);
-        assertThat(service.advance(rental.getPublicId(), out.getPublicId(), CheckpointStatus.CAPTURED, AT))
+        assertThat(service.advance(rental.getPublicId(), out.getPublicId(), CheckpointStatus.CAPTURED, AT, null))
                 .isEqualTo(CheckpointAdvance.UNCHANGED);
     }
 
@@ -48,7 +48,7 @@ class CheckpointProgressServiceTest {
         Checkpoint out = mine.startCheckpoint(CheckpointType.OUT);
         when(checkpoints.lockByPublicId(out.getPublicId())).thenReturn(Optional.of(out));
 
-        assertThat(service.advance(other.getPublicId(), out.getPublicId(), CheckpointStatus.CAPTURED, AT))
+        assertThat(service.advance(other.getPublicId(), out.getPublicId(), CheckpointStatus.CAPTURED, AT, null))
                 .isEqualTo(CheckpointAdvance.RENTAL_MISMATCH);
         assertThat(out.getStatus()).isNotEqualTo(CheckpointStatus.CAPTURED);
     }
@@ -57,7 +57,7 @@ class CheckpointProgressServiceTest {
     @DisplayName("rental-server에 없는 시점으로 온 이벤트는 모르는 시점으로 알린다")
     void unknownCheckpoint() {
         when(checkpoints.lockByPublicId("V1StGXR8_Z5jdHi6B-myT")).thenReturn(Optional.empty());
-        assertThat(service.advance("IPv6mcQOlTkKj6mOecAQt", "V1StGXR8_Z5jdHi6B-myT", CheckpointStatus.CAPTURED, AT))
+        assertThat(service.advance("IPv6mcQOlTkKj6mOecAQt", "V1StGXR8_Z5jdHi6B-myT", CheckpointStatus.CAPTURED, AT, null))
                 .isEqualTo(CheckpointAdvance.UNKNOWN_CHECKPOINT);
     }
 }

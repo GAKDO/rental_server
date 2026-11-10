@@ -22,6 +22,9 @@ import jakarta.persistence.criteria.Subquery;
 /** 렌탈 목록 조건: 상태 + 기기(기기별 이력) + 문제 있는 검사만 + (CUSTOMER면) 볼 수 있는 렌탈 + 커서(최근 생성 순). */
 public final class RentalSpecs {
 
+    private static final String PUBLIC_ID = "publicId";
+    private static final String CREATED_AT = "createdAt";
+
     private RentalSpecs() {
     }
 
@@ -45,22 +48,27 @@ public final class RentalSpecs {
                 where.add(cb.equal(root.get("status"), status));
             }
             if (deviceId != null) {
-                where.add(cb.equal(root.get("device").get("publicId"), deviceId));
+                where.add(cb.equal(root.get("device").get(PUBLIC_ID), deviceId));
             }
             if (problem && query != null) {
                 where.add(currentCheckpointHasProblem(root, query.subquery(Long.class), query.subquery(Long.class), cb));
             }
             if (visible != null) {
-                where.add(visible.isEmpty() ? cb.disjunction() : root.get("publicId").in(visible));
+                where.add(visible.isEmpty() ? cb.disjunction() : root.get(PUBLIC_ID).in(visible));
             }
             if (cursor != null) {
-                where.add(cb.or(
-                        cb.lessThan(root.get("createdAt"), cursor.createdAt()),
-                        cb.and(cb.equal(root.get("createdAt"), cursor.createdAt()),
-                                cb.lessThan(root.get("publicId"), cursor.publicId()))));
+                where.add(after(root, cursor, cb));
             }
             return cb.and(where.toArray(Predicate[]::new));
         };
+    }
+
+    /** 커서보다 뒤(최근 생성 순으로 다음 쪽): 생성 시각이 이르거나, 같으면 publicId가 작은 것 */
+    private static Predicate after(Root<Rental> root, Cursor cursor, CriteriaBuilder cb) {
+        return cb.or(
+                cb.lessThan(root.get(CREATED_AT), cursor.createdAt()),
+                cb.and(cb.equal(root.get(CREATED_AT), cursor.createdAt()),
+                        cb.lessThan(root.get(PUBLIC_ID), cursor.publicId())));
     }
 
     /**

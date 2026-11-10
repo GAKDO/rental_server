@@ -21,7 +21,7 @@ import jakarta.validation.constraints.Pattern;
 @RestController
 public class BoothCodeController {
 
-    static final String CODE_PATTERN = "^[0-9]{6}$";
+    static final String CODE_PATTERN = "^\\d{6}$";
 
     private final BoothCodeService service;
 
