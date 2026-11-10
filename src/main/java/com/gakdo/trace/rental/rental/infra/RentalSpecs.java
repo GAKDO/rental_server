@@ -38,10 +38,8 @@ public final class RentalSpecs {
             Collection<String> visible, Cursor cursor) {
         return (root, query, cb) -> {
             // 목록에 시리얼·기종 코드가 들어가 기기·기종을 함께 읽는다. 건수 세기(count)에는 fetch를 쓸 수 없어 건너뛴다
-            boolean counting = query != null && Long.class.equals(query.getResultType());
-            if (!counting) {
-                Fetch<?, ?> device = root.fetch("device", JoinType.INNER);
-                device.fetch("model", JoinType.INNER);
+            if (query == null || !Long.class.equals(query.getResultType())) {
+                fetchDeviceAndModel(root);
             }
             List<Predicate> where = new ArrayList<>();
             if (status != null) {
@@ -54,13 +52,23 @@ public final class RentalSpecs {
                 where.add(currentCheckpointHasProblem(root, query.subquery(Long.class), query.subquery(Long.class), cb));
             }
             if (visible != null) {
-                where.add(visible.isEmpty() ? cb.disjunction() : root.get(PUBLIC_ID).in(visible));
+                where.add(visibleOnly(root, visible, cb));
             }
             if (cursor != null) {
                 where.add(after(root, cursor, cb));
             }
             return cb.and(where.toArray(Predicate[]::new));
         };
+    }
+
+    private static void fetchDeviceAndModel(Root<Rental> root) {
+        Fetch<?, ?> device = root.fetch("device", JoinType.INNER);
+        device.fetch("model", JoinType.INNER);
+    }
+
+    /** 볼 수 있는 렌탈만. 비어 있으면 아무것도 없다 */
+    private static Predicate visibleOnly(Root<Rental> root, Collection<String> visible, CriteriaBuilder cb) {
+        return visible.isEmpty() ? cb.disjunction() : root.get(PUBLIC_ID).in(visible);
     }
 
     /** 커서보다 뒤(최근 생성 순으로 다음 쪽): 생성 시각이 이르거나, 같으면 publicId가 작은 것 */
