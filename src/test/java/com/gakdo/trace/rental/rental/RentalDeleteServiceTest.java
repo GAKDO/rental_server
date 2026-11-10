@@ -84,7 +84,8 @@ class RentalDeleteServiceTest {
         Rental rental = Rental.open(Fixtures.device("C02REAL0001"), "R-2026-0012");
         when(rentals.lockByPublicId(rental.getPublicId())).thenReturn(Optional.of(rental));
 
-        assertThatThrownBy(() -> service.deleteTestRental(rental.getPublicId()))
+        String rentalId = rental.getPublicId();
+        assertThatThrownBy(() -> service.deleteTestRental(rentalId))
                 .isInstanceOf(DomainException.class)
                 .extracting(e -> ((DomainException) e).code()).isEqualTo(ErrorCode.NOT_TEST_DATA);
         verify(checkpoints, never()).deleteByRentalId(any());

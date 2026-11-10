@@ -57,14 +57,15 @@ public class CheckpointEventListener {
         // 등급 이벤트면 등급도 남긴다("문제 있는 검사만 보기", 11/10). 다른 이벤트는 null
         String grade = next == CheckpointStatus.GRADED ? event.path("grade").asText(null) : null;
         CheckpointAdvance result = progress.advance(rentalId, checkpointId, next, occurredAt, grade);
+        String eventId = event.path("eventId").asText();
         if (result.isMismatch()) {
             log.error("렌탈·시점 짝이 맞지 않는 이벤트를 DLQ로 보냅니다: {} eventId={} rentalId={} checkpointId={} 사유={}",
-                    routingKey, event.path("eventId").asText(), rentalId, checkpointId, result);
+                    routingKey, eventId, rentalId, checkpointId, result);
             throw reject("렌탈·시점 짝이 맞지 않습니다: " + result);
         }
         boolean changed = result == CheckpointAdvance.CHANGED;
         if (log.isInfoEnabled()) {
-            log.info("시점 이벤트 {} eventId={} checkpointId={} → {}{}", routingKey, event.path("eventId").asText(),
+            log.info("시점 이벤트 {} eventId={} checkpointId={} → {}{}", routingKey, eventId,
                     checkpointId, next, changed ? "" : " (변화 없음)");
         }
         return changed;

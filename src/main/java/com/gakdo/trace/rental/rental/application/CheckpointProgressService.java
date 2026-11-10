@@ -24,10 +24,6 @@ public class CheckpointProgressService {
         this.checkpoints = checkpoints;
     }
 
-    public CheckpointAdvance advance(String rentalId, String checkpointId, CheckpointStatus next, OffsetDateTime occurredAt) {
-        return advance(rentalId, checkpointId, next, occurredAt, null);
-    }
-
     /**
      * @param grade trace.checkpoint.graded의 등급(A~D). 다른 이벤트면 null. 상태가 이미 앞서 있어도 등급은 마지막 값으로 남긴다(11/10)
      */
