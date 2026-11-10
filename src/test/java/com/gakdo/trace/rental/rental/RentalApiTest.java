@@ -293,12 +293,14 @@ class RentalApiTest extends WebTestBase {
     void listProblemAndTotal() throws Exception {
         Rental rental = Rental.open(Fixtures.device("S1"), "R");
         rental.updateDetails(RentalDetails.of("김고객", null, null));
+        rental.startCheckpoint(com.gakdo.trace.rental.rental.domain.CheckpointType.OUT).recordGrade("C");
         when(service.list(isNull(), isNull(), eq(true), isNull(), eq(20), any()))
                 .thenReturn(new RentalService.Page(List.of(rental), "next", 42));
         mvc.perform(get("/api/v1/rentals?problem=true").with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCount").value(42))
-                .andExpect(jsonPath("$.items[0].customerName").value("김고객"));
+                .andExpect(jsonPath("$.items[0].customerName").value("김고객"))
+                .andExpect(jsonPath("$.items[0].currentCheckpoint.grade").value("C"));
         mvc.perform(get("/api/v1/rentals?problem=true").with(booth()))
                 .andExpect(jsonPath("$.items[0].customerName").isEmpty());
     }

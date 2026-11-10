@@ -36,11 +36,12 @@ public final class RentalDtos {
     public record CheckpointCreateRequest(@NotNull CheckpointType type) {
     }
 
+    /** grade: 이 시점 검사의 마지막 등급(11/10, 목록에서 왜 문제인지 보이게). 없으면 null */
     public record CheckpointResponse(String checkpointId, CheckpointType type, CheckpointStatus status,
-            OffsetDateTime occurredAt) {
+            OffsetDateTime occurredAt, String grade) {
 
         static CheckpointResponse from(Checkpoint c) {
-            return new CheckpointResponse(c.getPublicId(), c.getType(), c.getStatus(), c.getOccurredAt());
+            return new CheckpointResponse(c.getPublicId(), c.getType(), c.getStatus(), c.getOccurredAt(), c.getGrade());
         }
     }
 
