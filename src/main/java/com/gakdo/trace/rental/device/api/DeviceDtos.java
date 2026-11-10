@@ -37,6 +37,7 @@ public final class DeviceDtos {
         }
     }
 
-    public record DevicePageResponse(List<DeviceResponse> items, String nextCursor) {
+    /** totalCount(11/10): 같은 조건의 전체 건수 */
+    public record DevicePageResponse(List<DeviceResponse> items, String nextCursor, long totalCount) {
     }
 }

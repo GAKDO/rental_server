@@ -24,8 +24,16 @@ public class CheckpointProgressService {
         this.checkpoints = checkpoints;
     }
 
-    @Transactional
     public CheckpointAdvance advance(String rentalId, String checkpointId, CheckpointStatus next, OffsetDateTime occurredAt) {
+        return advance(rentalId, checkpointId, next, occurredAt, null);
+    }
+
+    /**
+     * @param grade trace.checkpoint.graded의 등급(A~D). 다른 이벤트면 null. 상태가 이미 앞서 있어도 등급은 마지막 값으로 남긴다(11/10)
+     */
+    @Transactional
+    public CheckpointAdvance advance(String rentalId, String checkpointId, CheckpointStatus next, OffsetDateTime occurredAt,
+            String grade) {
         Checkpoint checkpoint = checkpoints.lockByPublicId(checkpointId).orElse(null);
         if (checkpoint == null) {
             return CheckpointAdvance.UNKNOWN_CHECKPOINT;
@@ -34,6 +42,7 @@ public class CheckpointProgressService {
             return CheckpointAdvance.RENTAL_MISMATCH;
         }
         boolean changed = checkpoint.advanceTo(next, occurredAt);
+        changed |= checkpoint.recordGrade(grade);
         if (changed && checkpoint.isSealed()) {
             checkpoint.getRental().onCheckpointSealed(checkpoint);
         }

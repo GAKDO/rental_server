@@ -24,9 +24,12 @@ public final class DeviceSpecs {
     public static Specification<Device> search(String modelCode, DeviceStatus status, String q, Cursor cursor) {
         return (root, query, cb) -> {
             List<Predicate> where = new ArrayList<>();
-            // 목록 응답에 기종 이름이 들어가 한 번에 읽는다(ManyToOne이라 limit와 함께 써도 안전)
+            // 목록 응답에 기종 이름이 들어가 한 번에 읽는다(ManyToOne이라 limit와 함께 써도 안전).
+            // 건수 세기(count, 11/10 총 N건)에는 fetch를 쓸 수 없어 일반 조인으로 거른다
+            boolean counting = query != null && Long.class.equals(query.getResultType());
             @SuppressWarnings("unchecked")
-            Join<Device, DeviceModel> model = (Join<Device, DeviceModel>) (Join<?, ?>) root.fetch("model", JoinType.INNER);
+            Join<Device, DeviceModel> model = counting ? root.join("model", JoinType.INNER)
+                    : (Join<Device, DeviceModel>) (Join<?, ?>) root.fetch("model", JoinType.INNER);
             if (modelCode != null) {
                 where.add(cb.equal(model.get("modelCode"), modelCode));
             }

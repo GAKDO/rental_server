@@ -8,6 +8,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.gakdo.trace.rental.common.infra.Cursor;
 import com.gakdo.trace.rental.common.infra.CurrentUser;
 import com.gakdo.trace.rental.common.infra.PublicIds;
@@ -47,25 +49,35 @@ public class RentalController {
 
     @PostMapping
     public ResponseEntity<RentalResponse> open(@Valid @RequestBody RentalCreateRequest request) {
-        Rental rental = service.open(request.deviceId(), request.renterRef());
+        Rental rental = service.open(request.deviceId(), request.renterRef(), request.details());
         return ResponseEntity.created(URI.create("/api/v1/rentals/" + rental.getPublicId()))
-                .body(RentalResponse.from(rental));
+                .body(RentalResponse.from(rental, true));
     }
 
     @GetMapping
     public RentalPageResponse list(@RequestParam(required = false) RentalStatus status,
             @RequestParam(required = false) @Pattern(regexp = PublicIds.PATTERN) String deviceId,
+            @RequestParam(defaultValue = "false") boolean problem,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(required = false) String cursor, @AuthenticationPrincipal Jwt jwt) {
-        // deviceId(11/6 추가): 기기별 렌탈 이력. 역할별 거르기와 겹쳐 적용한다
-        RentalService.Page page = service.list(status, deviceId, Cursor.decode(cursor), limit, CurrentUser.from(jwt));
-        return new RentalPageResponse(page.items().stream().map(RentalSummaryResponse::from).toList(),
-                page.nextCursor());
+        // deviceId(11/6 추가): 기기별 렌탈 이력. problem(11/10 추가): 지금 시점 등급 B·C·D만. 역할별 거르기와 겹쳐 적용한다
+        CurrentUser user = CurrentUser.from(jwt);
+        RentalService.Page page = service.list(status, deviceId, problem, Cursor.decode(cursor), limit, user);
+        return new RentalPageResponse(page.items().stream().map(r -> RentalSummaryResponse.from(r, user.isAdmin())).toList(),
+                page.nextCursor(), page.totalCount());
     }
 
     @GetMapping("/{rentalId}")
     public RentalResponse get(@PathVariable @Pattern(regexp = PublicIds.PATTERN) String rentalId, @AuthenticationPrincipal Jwt jwt) {
-        return RentalResponse.from(service.get(rentalId, CurrentUser.from(jwt)));
+        CurrentUser user = CurrentUser.from(jwt);
+        return RentalResponse.from(service.get(rentalId, user), user.isAdmin());
+    }
+
+    /** 고객 이름·반납 예정일·메모 고치기(11/10, contracts #23-2). ADMIN만(SecurityConfig). 생략은 그대로, null은 비우기. */
+    @PatchMapping("/{rentalId}")
+    public RentalResponse update(@PathVariable @Pattern(regexp = PublicIds.PATTERN) String rentalId,
+            @RequestBody(required = false) JsonNode body) {
+        return RentalResponse.from(service.updateDetails(rentalId, RentalDetailsParser.parse(body)), true);
     }
 
     /** 시험 렌탈 지우기: 기기 시리얼 TEST-만(아니면 409 NOT_TEST_DATA). ADMIN만(SecurityConfig). */

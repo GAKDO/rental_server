@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -32,14 +33,14 @@ class CheckpointEventListenerTest {
     @Test
     @DisplayName("라우팅 키마다 시점 상태가 정해진다(uploaded→CAPTURED, graded→GRADED, sealed→SEALED)")
     void routingKeys() {
-        when(progress.advance(any(), any(), any(), any())).thenReturn(CheckpointAdvance.CHANGED);
+        when(progress.advance(any(), any(), any(), any(), any())).thenReturn(CheckpointAdvance.CHANGED);
         assertThat(listener.handle("trace.capture.uploaded", event())).isTrue();
         verify(progress).advance(RENTAL, CHECKPOINT, CheckpointStatus.CAPTURED,
-                OffsetDateTime.parse("2026-11-09T14:05:12+09:00"));
+                OffsetDateTime.parse("2026-11-09T14:05:12+09:00"), null);
         listener.handle("trace.checkpoint.graded", event());
-        verify(progress).advance(eq(RENTAL), eq(CHECKPOINT), eq(CheckpointStatus.GRADED), any());
+        verify(progress).advance(eq(RENTAL), eq(CHECKPOINT), eq(CheckpointStatus.GRADED), any(), eq("B"));
         listener.handle("trace.record.sealed", event());
-        verify(progress).advance(eq(RENTAL), eq(CHECKPOINT), eq(CheckpointStatus.SEALED), any());
+        verify(progress).advance(eq(RENTAL), eq(CHECKPOINT), eq(CheckpointStatus.SEALED), any(), isNull());
     }
 
     @Test
@@ -68,10 +69,10 @@ class CheckpointEventListenerTest {
     @Test
     @DisplayName("렌탈·시점 짝이 rental-server 기록과 다르거나 모르는 시점이면 재시도 없이 DLX로 보낸다")
     void mismatchedPairRejected() {
-        when(progress.advance(any(), any(), any(), any())).thenReturn(CheckpointAdvance.RENTAL_MISMATCH);
+        when(progress.advance(any(), any(), any(), any(), any())).thenReturn(CheckpointAdvance.RENTAL_MISMATCH);
         assertThatThrownBy(() -> listener.handle("trace.capture.uploaded", event()))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
-        when(progress.advance(any(), any(), any(), any())).thenReturn(CheckpointAdvance.UNKNOWN_CHECKPOINT);
+        when(progress.advance(any(), any(), any(), any(), any())).thenReturn(CheckpointAdvance.UNKNOWN_CHECKPOINT);
         assertThatThrownBy(() -> listener.handle("trace.checkpoint.graded", event()))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
     }
@@ -79,7 +80,7 @@ class CheckpointEventListenerTest {
     @Test
     @DisplayName("이미 옮겨진 시점에 같은 이벤트가 다시 오면 바뀐 것 없이 받아들인다")
     void duplicateAccepted() {
-        when(progress.advance(any(), any(), any(), any())).thenReturn(CheckpointAdvance.UNCHANGED);
+        when(progress.advance(any(), any(), any(), any(), any())).thenReturn(CheckpointAdvance.UNCHANGED);
         assertThat(listener.handle("trace.capture.uploaded", event())).isFalse();
     }
 

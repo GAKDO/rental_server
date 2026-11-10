@@ -56,7 +56,8 @@ public class DeviceController {
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(required = false) String cursor) {
         DeviceService.Page page = service.search(modelCode, status, q, Cursor.decode(cursor), limit);
-        return new DevicePageResponse(page.items().stream().map(DeviceResponse::from).toList(), page.nextCursor());
+        return new DevicePageResponse(page.items().stream().map(DeviceResponse::from).toList(), page.nextCursor(),
+                page.totalCount());
     }
 
     @GetMapping("/{deviceId}")
