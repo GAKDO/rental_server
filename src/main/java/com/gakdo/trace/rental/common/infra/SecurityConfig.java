@@ -1,0 +1,95 @@
+package com.gakdo.trace.rental.common.infra;
+
+import java.io.IOException;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.web.SecurityFilterChain;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gakdo.trace.rental.common.api.ProblemFactory;
+import com.gakdo.trace.rental.common.domain.ErrorCode;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+/**
+ * 역할×경로 규칙(contracts x-trace-access). JWT는 auth-server JWKS로 RS256 검증하고 role 클레임을 ROLE_*로 쓴다.
+ * gateway도 같은 검사를 하지만 서버도 스스로 검증한다(헌법 V).
+ */
+@Configuration
+public class SecurityConfig {
+
+    private static final String ADMIN = "ADMIN";
+    private static final String CUSTOMER = "CUSTOMER";
+    private static final String BOOTH = "BOOTH";
+
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
+        http.csrf(csrf -> csrf.disable())
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rentals/ping").permitAll()
+                        .requestMatchers("/actuator/health/**", "/actuator/health", "/actuator/info").permitAll()
+                        // 공개 보유 기기 목록(11/8): 로그인 없이. 시리얼·대여자는 응답에 없다
+                        .requestMatchers(HttpMethod.GET, "/api/v1/catalog/devices").permitAll()
+                        // 부스 태블릿의 "검사 기다리는 기기" 목록(11/3 MVP): 목록만 열고, 결과는 서비스에서 OPEN으로 고정한다
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rentals").hasAnyRole(ADMIN, CUSTOMER, BOOTH)
+                        // 부스 6자리 코드로 기기·렌탈·시점 ID 받기(11/4). 아래 ADMIN 규칙보다 먼저 둔다
+                        .requestMatchers(HttpMethod.POST, "/api/v1/rentals/booth-codes/redeem").hasRole(BOOTH)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/rentals/*").hasAnyRole(ADMIN, CUSTOMER)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/device-models/*").hasAnyRole(ADMIN, CUSTOMER)
+                        .requestMatchers("/api/v1/rentals/**", "/api/v1/devices/**", "/api/v1/device-models/**",
+                                "/api/v1/rentals", "/api/v1/devices", "/api/v1/device-models",
+                                "/api/v1/pilot/**").hasRole(ADMIN)
+                        .anyRequest().denyAll())
+                .oauth2ResourceServer(o -> o
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(roleConverter()))
+                        .authenticationEntryPoint((req, res, e) -> write(objectMapper, req, res, ErrorCode.UNAUTHENTICATED))
+                        .accessDeniedHandler((req, res, e) -> write(objectMapper, req, res, ErrorCode.FORBIDDEN)))
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint((req, res, ex) -> write(objectMapper, req, res, ErrorCode.UNAUTHENTICATED))
+                        .accessDeniedHandler((req, res, ex) -> write(objectMapper, req, res, ErrorCode.FORBIDDEN)));
+        return http.build();
+    }
+
+    /** JWKS 주소는 spring.security.oauth2.resourceserver.jwt.jwk-set-uri, 발급자는 trace. 키는 첫 요청 때 받는다. */
+    @Bean
+    JwtDecoder jwtDecoder(@Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}") String jwkSetUri,
+            @Value("${app.jwt.issuer}") String issuer) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefaultWithIssuer(issuer)));
+        return decoder;
+    }
+
+    static JwtAuthenticationConverter roleConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            String role = jwt.getClaimAsString("role");
+            return role == null ? List.of() : List.of(new SimpleGrantedAuthority("ROLE_" + role));
+        });
+        return converter;
+    }
+
+    private static void write(ObjectMapper objectMapper, HttpServletRequest request, HttpServletResponse response,
+            ErrorCode code) throws IOException {
+        ProblemDetail problem = ProblemFactory.of(code, null, request.getRequestURI(), List.of());
+        response.setStatus(code.status().value());
+        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        objectMapper.writeValue(response.getOutputStream(), problem);
+    }
+}
