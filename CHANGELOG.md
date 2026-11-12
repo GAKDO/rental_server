@@ -6,6 +6,10 @@ main에 버전이 적힌 CHANGELOG가 올라가면 release.yml이 태그와 GitH
 
 ## [Unreleased]
 
+### 변경
+
+- CI: SonarQube 분석 뒤 품질 게이트 판정까지 기다려 실행 요약·경고·알림에 통과/실패를 남김(이미지 빌드·배포는 막지 않음)
+
 ### 추가
 - 기종 시드 V2: MBA13-M2(MacBook Air M2, 치수 304.1×215.0, 두께 7.0/4.0 mm). 이미 있으면 건너뜀
 - RE1 후속: 폐기 기기는 수리 중으로만 되돌린다(RETIRED → ACTIVE는 409 DEVICE_STATUS_TRANSITION_INVALID, codes.yaml 0.6.0)
