@@ -26,10 +26,10 @@ public record RentalDetails(Change<String> customerName, Change<LocalDate> dueAt
 
     /**
      * 반납 예정일을 오늘보다 과거로 넣지 못하게 막는다(11/13 민서 요청). 오늘은 허용하고, 비우기(null)와 생략은 검사하지 않는다.
-     * 이미 저장된 과거 날짜는 건드리지 않는다(다른 칸만 고칠 때는 dueAt이 생략되므로 통과).
+     * 이미 저장된 과거 날짜는 건드리지 않는다: 지금 저장된 값(current)과 같은 값을 다시 보내면 통과한다(다른 칸만 고칠 때).
      */
-    public void requireDueNotBefore(LocalDate today) {
-        if (dueAt != null && dueAt.value() != null && dueAt.value().isBefore(today)) {
+    public void requireDueNotBefore(LocalDate today, LocalDate current) {
+        if (dueAt != null && dueAt.value() != null && dueAt.value().isBefore(today) && !dueAt.value().equals(current)) {
             throw DomainException.invalid("dueAt", "반납 예정일은 오늘(" + today + ") 이후 날짜여야 합니다");
         }
     }
