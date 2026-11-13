@@ -470,26 +470,33 @@ class RentalIntegrationTest {
     @Test
     @DisplayName("렌탈 고객 이름·반납 예정일·메모: 생성 때 받고 PATCH로 고치며, 고객에게는 메모가 null이고 고객은 고칠 수 없다")
     void rentalDetails() throws Exception {
+        String due = com.gakdo.trace.rental.rental.domain.RentalDetails.today().plusDays(6).toString();
+        String due2 = com.gakdo.trace.rental.rental.domain.RentalDetails.today().plusDays(7).toString();
         upsertModel("DET-1");
         String deviceId = registerDevice("SER-DET-1", "DET-1");
         MvcResult created = mvc.perform(post("/api/v1/rentals").with(admin()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"deviceId\":\"" + deviceId + "\",\"renterRef\":\"R-1\",\"customerName\":\" 김고객 \","
-                        + "\"dueAt\":\"2026-11-19\",\"note\":\"충전기 함께\"}"))
+                        + "\"dueAt\":\"" + due + "\",\"note\":\"충전기 함께\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.customerName").value("김고객"))
-                .andExpect(jsonPath("$.dueAt").value("2026-11-19"))
+                .andExpect(jsonPath("$.dueAt").value(due))
                 .andExpect(jsonPath("$.note").value("충전기 함께"))
                 .andReturn();
         String rentalId = json.readTree(created.getResponse().getContentAsString()).path("rentalId").asText();
 
         mvc.perform(patch("/api/v1/rentals/" + rentalId).with(admin()).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dueAt\":\"2026-11-20\",\"note\":null}"))
+                .content("{\"dueAt\":\"" + due2 + "\",\"note\":null}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.customerName").value("김고객"))
-                .andExpect(jsonPath("$.dueAt").value("2026-11-20"))
+                .andExpect(jsonPath("$.dueAt").value(due2))
                 .andExpect(jsonPath("$.note").isEmpty());
         mvc.perform(patch("/api/v1/rentals/" + rentalId).with(admin()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"note\":\"메모\"}")).andExpect(status().isOk());
+        String yesterday = com.gakdo.trace.rental.rental.domain.RentalDetails.today().minusDays(1).toString();
+        mvc.perform(patch("/api/v1/rentals/" + rentalId).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"dueAt\":\"" + yesterday + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         mvc.perform(get("/api/v1/rentals/" + rentalId).with(customer(rentalId)))
                 .andExpect(jsonPath("$.customerName").value("김고객"))
                 .andExpect(jsonPath("$.note").isEmpty());

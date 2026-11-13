@@ -165,4 +165,19 @@ class RentalDomainTest {
         org.assertj.core.api.Assertions.assertThat(rental.getNote()).isEqualTo("메모");
         org.assertj.core.api.Assertions.assertThat(RentalDetails.NONE.isEmpty()).isTrue();
     }
+
+    @Test
+    @DisplayName("반납 예정일이 한국 시간 오늘보다 과거면 400 VALIDATION_FAILED, 오늘·미래·비우기·생략은 통과한다")
+    void dueAtNotInPast() {
+        java.time.LocalDate today = java.time.LocalDate.parse("2026-11-13");
+        assertThatThrownBy(() -> RentalDetails.of(null, java.time.LocalDate.parse("2026-11-06"), null).requireDueNotBefore(today))
+                .isInstanceOf(DomainException.class)
+                .extracting(e -> ((DomainException) e).code()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        RentalDetails.of(null, today, null).requireDueNotBefore(today);
+        RentalDetails.of(null, today.plusDays(1), null).requireDueNotBefore(today);
+        new RentalDetails(null, new RentalDetails.Change<>(null), null).requireDueNotBefore(today);
+        new RentalDetails(RentalDetails.Change.text("김고객"), null, null).requireDueNotBefore(today);
+        RentalDetails.NONE.requireDueNotBefore(today);
+        assertThat(RentalDetails.today()).isEqualTo(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
+    }
 }
