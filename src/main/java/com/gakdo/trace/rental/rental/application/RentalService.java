@@ -52,6 +52,9 @@ public class RentalService {
      */
     @Transactional
     public Rental open(String deviceId, String renterRef, RentalDetails details) {
+        if (details != null) {
+            details.requireDueNotBefore(RentalDetails.today(), null);
+        }
         Device device = devices.lockByPublicId(deviceId).orElseThrow(() -> DomainException.notFound("기기"));
         Rental rental = Rental.open(device, renterRef);
         if (details != null && !details.isEmpty()) {
@@ -82,6 +85,7 @@ public class RentalService {
         // 종료·시점 진행과 동시에 저장돼 서로 덮어쓰지 않게 먼저 잠근다
         rentals.lockByPublicId(rentalId).orElseThrow(() -> DomainException.notFound("렌탈"));
         Rental rental = rentals.findWithCheckpointsByPublicId(rentalId).orElseThrow(() -> DomainException.notFound("렌탈"));
+        details.requireDueNotBefore(RentalDetails.today(), rental.getDueAt());
         rental.updateDetails(details);
         return rental;
     }
