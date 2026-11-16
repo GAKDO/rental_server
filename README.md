@@ -16,6 +16,24 @@ TRACE(노트북 렌탈 상태 기록 서비스)의 **rental-server**: 렌탈·�
 curl http://localhost:8080/api/v1/rentals/ping
 ```
 
+## API
+
+계약 원본: GAKDO/contracts `openapi/rental-server.yaml`. 아래는 요약입니다.
+
+| 경로 | 하는 일 |
+|---|---|
+| `/api/v1/device-models` | 기종 목록·등록·수정(치수 포함) |
+| `/api/v1/devices` | 기기 목록·등록·수정 |
+| `/api/v1/rentals` | 렌탈 열기·목록·상세·수정. 부스는 `GET /api/v1/rentals?status=OPEN`으로 검사 기다리는 기기를 읽음 |
+| `POST /api/v1/rentals/{rentalId}/checkpoints`, `POST /api/v1/rentals/{rentalId}/close` | 출고·수령·반납 시점 시작, 렌탈 종료 |
+| `POST /api/v1/rentals/{rentalId}/booth-code`, `POST /api/v1/rentals/booth-codes/redeem` | 일회용 6자리 부스 코드 만들기(관리자), 부스가 코드로 기기 고르기 |
+| `GET /api/v1/catalog/devices` | 로그인 없이 보는 보유 노트북 목록 |
+| `/api/v1/pilot/participants` | 파일럿 참여자 |
+
+시점 상태는 `OPEN → CAPTURED → GRADED → SEALED`로 바뀝니다. `checkpoint.started`를 발행하고, `capture.uploaded`·`checkpoint.graded`·`record.sealed`를 받아 상태를 옮깁니다. 삭제 API는 시험 데이터(`TEST-` 시리얼)만 지웁니다.
+
+환경 변수: `POSTGRES_HOST`·`POSTGRES_PORT`·`POSTGRES_DB`, `DB_USERNAME`·`DB_PASSWORD`(`rental` 스키마), `RABBITMQ_HOST`·`RABBITMQ_PORT`·`RABBITMQ_VHOST`·`RABBITMQ_USERNAME`·`RABBITMQ_PASSWORD`, `AUTH_JWKS_URI`(또는 `AUTH_SERVER_URL`).
+
 ## 테스트
 
 ```bash
@@ -29,7 +47,7 @@ curl http://localhost:8080/api/v1/rentals/ping
 | 워크플로 | 언제 | 하는 일 |
 |---|---|---|
 | `backend-ci` | PR, develop push | 테스트 + JaCoCo 40% + (켜져 있으면) 학교 SonarQube |
-| `배포` | PR(빌드만), develop·main push | 이미지 → GHCR(`ghcr.io/<조직>/rental-server`). main이면 gitops 레포 이미지 태그 갱신 → Argo CD 배포 |
+| `배포` | PR(빌드만), develop·main push(`.md`만 바뀌면 건너뜀) | 이미지 → GHCR(`ghcr.io/<조직>/rental-server`, develop은 `:develop`). 지금 운영(https://gakdo.site, 학교 서버 Compose)은 gitops `compose/ops/autodeploy.sh`가 3분마다 `:develop`을 받아 이 서비스만 무중단으로 바꾼다. main이면 gitops `overlays/school` 이미지 태그도 바꾼다(클러스터 경로, 지금은 쓰지 않음) |
 | `비밀값 검사` | PR, main·develop push | 학교 공용 비밀번호 패턴 + gitleaks |
 | `release` | main에 CHANGELOG 버전 | 태그와 GitHub Release |
 | `PR 알림`·`CI 결과 알림` | PR·CI 끝 | Discord·텔레그램 (변수로 켬) |
