@@ -170,7 +170,8 @@ class RentalDomainTest {
     @DisplayName("반납 예정일이 한국 시간 오늘보다 과거면 400 VALIDATION_FAILED, 오늘·미래·비우기·생략·이미 저장된 값 그대로는 통과한다")
     void dueAtNotInPast() {
         java.time.LocalDate today = java.time.LocalDate.parse("2026-11-13");
-        assertThatThrownBy(() -> RentalDetails.of(null, java.time.LocalDate.parse("2026-11-06"), null).requireDueNotBefore(today, null))
+        RentalDetails pastDue = RentalDetails.of(null, java.time.LocalDate.parse("2026-11-06"), null);
+        assertThatThrownBy(() -> pastDue.requireDueNotBefore(today, null))
                 .isInstanceOf(DomainException.class)
                 .extracting(e -> ((DomainException) e).code()).isEqualTo(ErrorCode.VALIDATION_FAILED);
         RentalDetails.of(null, today, null).requireDueNotBefore(today, null);
@@ -180,7 +181,8 @@ class RentalDomainTest {
         RentalDetails.NONE.requireDueNotBefore(today, null);
         java.time.LocalDate stored = java.time.LocalDate.parse("2026-11-06");
         RentalDetails.of(null, stored, null).requireDueNotBefore(today, stored);
-        assertThatThrownBy(() -> RentalDetails.of(null, stored.minusDays(1), null).requireDueNotBefore(today, stored))
+        RentalDetails earlierThanStored = RentalDetails.of(null, stored.minusDays(1), null);
+        assertThatThrownBy(() -> earlierThanStored.requireDueNotBefore(today, stored))
                 .isInstanceOf(DomainException.class);
         assertThat(RentalDetails.today()).isEqualTo(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
     }
