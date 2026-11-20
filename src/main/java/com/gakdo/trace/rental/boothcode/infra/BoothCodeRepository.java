@@ -18,7 +18,8 @@ public interface BoothCodeRepository extends JpaRepository<BoothCode, Long> {
 
     /** 같은 렌탈에 다시 발급하면 앞서 발급한 안 쓴 코드를 못 쓰게 한다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("update BoothCode b set b.usedAt = :now where b.rental.id = :rentalId and b.usedAt is null")
+    @Query("update BoothCode b set b.usedAt = :now where b.usedAt is null"
+            + " and b.checkpoint.id in (select c.id from Checkpoint c where c.rental.id = :rentalId)")
     int retireUnused(Long rentalId, OffsetDateTime now);
 
     /** 한 번만 쓰기: 동시에 두 부스가 넣어도 한쪽만 1을 받는다. */
