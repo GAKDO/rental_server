@@ -1,3 +1,5 @@
+// 테스트 도구(테스트 자체는 아님): 테스트용 로그인 토큰. 관리자·고객(볼 수 있는 렌탈 목록 포함)·부스를 흉내 낸다.
+
 package com.gakdo.trace.rental.support;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;

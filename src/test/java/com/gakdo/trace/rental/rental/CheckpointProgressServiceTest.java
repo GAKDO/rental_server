@@ -1,3 +1,5 @@
+// 이 파일이 확인하는 것: 이벤트가 가리키는 렌탈·시점이 맞는지 확인하고 시점 상태를 옮기는 규칙.
+
 package com.gakdo.trace.rental.rental;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,6 +28,8 @@ class CheckpointProgressServiceTest {
     private final CheckpointRepository checkpoints = mock(CheckpointRepository.class);
     private final CheckpointProgressService service = new CheckpointProgressService(checkpoints);
 
+    // [상황] 맞는 렌탈·시점으로 "촬영됨"이 오고, 같은 것이 또 온다.
+    // [기대] 처음엔 바뀜, 두 번째는 바뀐 것 없음.
     @Test
     @DisplayName("렌탈·시점 짝이 맞으면 시점 상태를 옮기고, 같은 이벤트가 다시 오면 바뀐 것이 없다")
     void matchingPairAdvances() {
@@ -40,6 +44,8 @@ class CheckpointProgressServiceTest {
                 .isEqualTo(CheckpointAdvance.UNCHANGED);
     }
 
+    // [상황] 다른 렌탈 번호로 내 렌탈의 시점을 바꾸려는 이벤트가 온다.
+    // [기대] 바꾸지 않고 "짝 불일치"로 알린다.
     @Test
     @DisplayName("다른 렌탈의 시점으로 온 이벤트는 시점을 바꾸지 않고 짝 불일치로 알린다")
     void otherRentalsCheckpointIsMismatch() {
@@ -53,6 +59,8 @@ class CheckpointProgressServiceTest {
         assertThat(out.getStatus()).isNotEqualTo(CheckpointStatus.CAPTURED);
     }
 
+    // [상황] 이 서버에 없는 시점으로 이벤트가 온다.
+    // [기대] "모르는 시점"으로 알린다.
     @Test
     @DisplayName("rental-server에 없는 시점으로 온 이벤트는 모르는 시점으로 알린다")
     void unknownCheckpoint() {

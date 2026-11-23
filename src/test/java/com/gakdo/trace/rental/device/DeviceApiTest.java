@@ -1,3 +1,6 @@
+// 이 파일이 확인하는 것: 관리자 화면의 기기·기종 API(등록·조회·수정·삭제·검색)와 누가 쓸 수 있는지.
+// DB 대신 가짜 서비스를 쓰고, 보안 규칙과 오류 형식은 운영과 같다.
+
 package com.gakdo.trace.rental.device;
 
 import static com.gakdo.trace.rental.support.TestJwts.admin;
@@ -51,6 +54,8 @@ class DeviceApiTest extends WebTestBase {
     @MockitoBean
     private DeviceModelService models;
 
+    // [상황] 관리자가 기기 상세를 보고, 없는 기기를 보고, 고객이 본다.
+    // [기대] 관리자는 계약 모양 그대로 받고, 없으면 404, 고객은 403.
     @Test
     @DisplayName("기기 상세: ADMIN은 계약 Device 형식을 받고, 없는 기기는 404 NOT_FOUND, CUSTOMER는 403")
     void getDevice() throws Exception {
@@ -68,6 +73,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(status().isForbidden());
     }
 
+    // [상황] 관리자가 새 노트북을 등록한다.
+    // [기대] 201과 기기 정보(기기 ID는 공개 ID)를 돌려준다.
     @Test
     @DisplayName("기기 등록은 201과 계약 Device 형식(deviceId는 publicId)을 돌려준다")
     void registerDevice() throws Exception {
@@ -85,6 +92,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.id").doesNotExist());
     }
 
+    // [상황] 이미 있는 일련번호로 등록한다.
+    // [기대] 409 DEVICE_SERIAL_EXISTS.
     @Test
     @DisplayName("같은 시리얼로 기기를 등록하면 409 DEVICE_SERIAL_EXISTS(Problem Details)")
     void duplicateSerial() throws Exception {
@@ -98,6 +107,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.instance").value("/api/v1/devices"));
     }
 
+    // [상황] 모르는 칸, 빠진 칸, 틀린 코드 값(예: 없는 OS)으로 등록한다.
+    // [기대] 400 VALIDATION_FAILED.
     @Test
     @DisplayName("등록 본문의 모르는 필드·빠진 필드·틀린 코드 값은 400 VALIDATION_FAILED")
     void invalidCreateBody() throws Exception {
@@ -117,6 +128,8 @@ class DeviceApiTest extends WebTestBase {
         verifyNoInteractions(devices);
     }
 
+    // [상황] 기기 수정에 일련번호를 넣어 보낸다.
+    // [기대] 400. 일련번호는 등록 뒤 바꿀 수 없다(기록 바꿔치기 방지).
     @Test
     @DisplayName("PATCH에 serial을 보내면 400이고 서비스는 불리지 않는다(시리얼은 등록 뒤 바꿀 수 없다)")
     void patchSerialRejected() throws Exception {
@@ -127,6 +140,8 @@ class DeviceApiTest extends WebTestBase {
         verifyNoInteractions(devices);
     }
 
+    // [상황] 진행 중 렌탈이 있는 기기를 수리 중으로 바꾼다.
+    // [기대] 409 DEVICE_HAS_OPEN_RENTAL.
     @Test
     @DisplayName("진행 중 렌탈이 있는 기기를 수리 중으로 바꾸면 409 DEVICE_HAS_OPEN_RENTAL")
     void patchWithOpenRental() throws Exception {
@@ -138,6 +153,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.code").value("DEVICE_HAS_OPEN_RENTAL"));
     }
 
+    // [상황] 폐기 기기를 바로 사용 가능으로 바꾼다.
+    // [기대] 409 DEVICE_STATUS_TRANSITION_INVALID.
     @Test
     @DisplayName("폐기 기기를 사용 가능으로 바로 바꾸면 409 DEVICE_STATUS_TRANSITION_INVALID(Problem Details)")
     void patchRetiredToActive() throws Exception {
@@ -151,6 +168,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.title").value("폐기한 기기는 수리 중으로만 되돌릴 수 있습니다"));
     }
 
+    // [상황] 기종·상태로 기기 목록을 찾는다.
+    // [기대] 결과와 다음 쪽 커서를 준다.
     @Test
     @DisplayName("기기 목록은 기종·상태로 찾고 nextCursor를 돌려준다")
     void searchDevices() throws Exception {
@@ -163,6 +182,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.nextCursor").value("next"));
     }
 
+    // [상황] 개수 0, 없는 상태 값, 깨진 커서로 찾는다.
+    // [기대] 400.
     @Test
     @DisplayName("목록 파라미터 형식 오류(limit 0, 상태 값, 깨진 커서)는 400")
     void searchInvalidParams() throws Exception {
@@ -176,6 +197,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.errors[0].field").value("cursor"));
     }
 
+    // [상황] 로그인 없이, 고객으로 기기 API를 부른다.
+    // [기대] 로그인 없음 401, 고객 403(기기 관리는 관리자만).
     @Test
     @DisplayName("기기 API는 ADMIN만: 토큰 없으면 401 UNAUTHENTICATED, CUSTOMER면 403 FORBIDDEN")
     void deviceAccess() throws Exception {
@@ -188,6 +211,8 @@ class DeviceApiTest extends WebTestBase {
         mvc.perform(get("/api/v1/devices").with(TestJwts.booth())).andExpect(status().isForbidden());
     }
 
+    // [상황] 기종 코드로 치수를 조회한다(고객도).
+    // [기대] 3D 트윈 화면에 쓸 치수를 고객도 받을 수 있다.
     @Test
     @DisplayName("모델명으로 3D 트윈 치수를 조회한다(CUSTOMER도 가능)")
     void getModelDimensions() throws Exception {
@@ -200,6 +225,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.formFactor").value("CLAMSHELL"));
     }
 
+    // [상황] 관리자가 기종 목록을 보고 기종을 저장(있으면 고치고 없으면 만듦)한다.
+    // [기대] 목록은 관리자만, 저장할 때 누가 바꿨는지 함께 넘긴다.
     @Test
     @DisplayName("기종 목록은 ADMIN만, 저장은 PUT 업서트이고 변경자를 넘긴다")
     void modelListAndUpsert() throws Exception {
@@ -223,6 +250,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.modelCode").value("MBA13-M2"));
     }
 
+    // [상황] 치수 0 이하·빠진 치수·잘못된 기종 코드로 저장하고, 없는 기종을 조회한다.
+    // [기대] 저장은 400, 없는 기종 조회는 404.
     @Test
     @DisplayName("기종 저장: 치수 0 이하·빠진 치수·잘못된 기종 코드는 400, 없는 기종 조회는 404")
     void modelValidation() throws Exception {
@@ -237,6 +266,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
+    // [상황] 기종 사양에 GPU를 넣거나 빼고, 128자를 넘겨 넣는다.
+    // [기대] GPU는 선택 항목으로 저장되고, 너무 길면 400.
     @Test
     @DisplayName("기준 사양에 GPU를 선택으로 저장하고, 128자를 넘으면 400")
     void modelSpecGpu() throws Exception {
@@ -258,6 +289,8 @@ class DeviceApiTest extends WebTestBase {
                 .andExpect(status().isBadRequest());
     }
 
+    // [상황] 관리자가 기기·기종을 지우고, 이력이 있는 것을 지우고, 고객이 지워 본다.
+    // [기대] 관리자 정상 삭제 204, 이력이 있으면 409(DEVICE_IN_USE·DEVICE_MODEL_IN_USE), 고객 403.
     @Test
     @DisplayName("기기·기종 지우기: ADMIN은 204, 이력이 있으면 409(DEVICE_IN_USE·DEVICE_MODEL_IN_USE), CUSTOMER는 403")
     void deleteDeviceAndModel() throws Exception {

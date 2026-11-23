@@ -1,3 +1,5 @@
+// 이 파일이 확인하는 것: 파일럿(실사용 시범) 참가자 등록 API. 실명 대신 별칭(P01~P999)만 받는다.
+
 package com.gakdo.trace.rental.pilot;
 
 import static com.gakdo.trace.rental.support.TestJwts.admin;
@@ -45,6 +47,8 @@ class PilotApiTest extends WebTestBase {
                 + "\",\"deviceId\":\"" + DEVICE + "\",\"consentAt\":\"2026-11-11T14:00:00+09:00\"}");
     }
 
+    // [상황] 관리자가 별칭 P01·기기·동의 시각으로 참가자를 등록한다.
+    // [기대] 201과 참가자 ID를 받는다. 실명은 받지 않는다.
     @Test
     @DisplayName("관리자가 별칭·기기·동의 시각으로 등록하면 201과 참여자 ID를 받는다(실명은 받지 않는다)")
     void adminRegisters() throws Exception {
@@ -58,6 +62,8 @@ class PilotApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.deviceId").value(DEVICE));
     }
 
+    // [상황] 이미 쓰는 별칭, 실명("홍길동"), P00, P000을 넣는다.
+    // [기대] 중복 409 PILOT_ALIAS_EXISTS, 나머지는 모양이 틀려 400.
     @Test
     @DisplayName("별칭이 겹치면 409 PILOT_ALIAS_EXISTS, 별칭 모양이 P01~P999가 아니면 400이다")
     void aliasRules() throws Exception {
@@ -73,6 +79,8 @@ class PilotApiTest extends WebTestBase {
         mvc.perform(create("P000").with(admin())).andExpect(status().isBadRequest());
     }
 
+    // [상황] 고객·부스·로그인 없이 등록한다.
+    // [기대] 고객·부스 403, 로그인 없음 401.
     @Test
     @DisplayName("고객·부스는 403, 토큰이 없으면 401이다")
     void adminOnly() throws Exception {

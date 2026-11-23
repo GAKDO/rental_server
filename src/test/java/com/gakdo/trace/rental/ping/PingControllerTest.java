@@ -1,3 +1,5 @@
+// 이 파일이 확인하는 것: rental-server 점검 주소(/api/v1/rentals/ping).
+
 package com.gakdo.trace.rental.ping;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -20,6 +22,8 @@ class PingControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    // [상황] 로그인 없이 점검 주소를 부른다.
+    // [기대] 서비스 이름 rental-server·버전·상태·배포 커밋을 돌려준다.
     @Test
     @DisplayName("ping은 로그인 없이 열리고 service·version·commit을 돌려준다")
     void ping() throws Exception {

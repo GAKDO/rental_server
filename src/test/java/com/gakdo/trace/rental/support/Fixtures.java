@@ -1,3 +1,5 @@
+// 테스트 도구(테스트 자체는 아님): DB 없이 쓰는 기종(맥북 에어 13 M2, 치수 포함)과 기기 견본. 값은 계약 예시와 같다.
+
 package com.gakdo.trace.rental.support;
 
 import java.math.BigDecimal;
