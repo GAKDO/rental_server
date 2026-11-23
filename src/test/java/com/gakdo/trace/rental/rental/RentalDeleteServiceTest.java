@@ -1,3 +1,5 @@
+// 이 파일이 확인하는 것: 시험 렌탈 지우기 규칙. 일련번호가 TEST-로 시작하는 렌탈만 지울 수 있다.
+
 package com.gakdo.trace.rental.rental;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +43,8 @@ class RentalDeleteServiceTest {
         service = new RentalService(rentals, checkpoints, devices, events);
     }
 
+    // [상황] TEST-0002 기기의 시험 렌탈(출고 시점 1개)을 지운다.
+    // [기대] 시점·렌탈·기기를 지우고, 시점마다 "시험 시점 지움" 이벤트를 보내 다른 서버도 지우게 한다.
     @Test
     @DisplayName("시험 렌탈을 지우면 시점·렌탈·기기를 지우고 시점마다 trace.checkpoint.purged를 낸다")
     void deletesTestRentalAndPublishesPerCheckpoint() {
@@ -64,6 +68,8 @@ class RentalDeleteServiceTest {
         assertThat(sent.getValue().schemaVersion()).isEqualTo("1.0");
     }
 
+    // [상황] 그 기기에 다른 렌탈이 남아 있다.
+    // [기대] 렌탈만 지우고 기기는 남긴다.
     @Test
     @DisplayName("기기에 다른 렌탈이 남아 있으면 기기는 지우지 않는다")
     void keepsDeviceWithOtherRentals() {
@@ -78,6 +84,8 @@ class RentalDeleteServiceTest {
         verify(events, never()).publishPurged(any());
     }
 
+    // [상황] 실제 기기(C02...)의 렌탈을 지운다.
+    // [기대] 409 NOT_TEST_DATA, 아무것도 지우지 않는다.
     @Test
     @DisplayName("시리얼이 TEST-로 시작하지 않는 렌탈은 409 NOT_TEST_DATA이고 아무것도 지우지 않는다")
     void refusesRealRental() {
@@ -93,6 +101,8 @@ class RentalDeleteServiceTest {
         verify(events, never()).publishPurged(any());
     }
 
+    // [상황] 없는 렌탈을 지운다.
+    // [기대] 404.
     @Test
     @DisplayName("없는 렌탈은 404")
     void missingRental() {
