@@ -40,6 +40,7 @@ class RentalDomainTest {
 
     // [상황] 수리 중·폐기 기기로 렌탈을 만든다.
     // [기대] 409 DEVICE_NOT_ACTIVE.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("수리 중·폐기 기기로 렌탈을 만들면 409 DEVICE_NOT_ACTIVE")
     void inactiveDeviceRejected() {
@@ -52,6 +53,7 @@ class RentalDomainTest {
 
     // [상황] 출고 시점 없이 수령 시점을 만든다.
     // [기대] 409 CHECKPOINT_ORDER_VIOLATION.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("출고 전에 수령 기록을 만들면 거부된다(409 CHECKPOINT_ORDER_VIOLATION)")
     void receiveBeforeOutRejected() {
@@ -73,6 +75,7 @@ class RentalDomainTest {
 
     // [상황] 출고를 시작하고, 같은 출고를 또 시작한다.
     // [기대] 렌탈 시작 시각이 채워지고, 두 번째는 409.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("OUT을 시작하면 startedAt이 채워지고, 같은 시점을 또 시작하면 409")
     void outStartsRental() {
@@ -193,6 +196,7 @@ class RentalDomainTest {
 
     // [상황] 반납 예정일을 어제, 오늘, 내일, 비우기, 생략, 이미 저장된 과거 값 그대로로 넣는다.
     // [기대] 한국 시간 오늘보다 과거면 400, 나머지는 통과(이미 저장된 값을 그대로 두는 건 허용).
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("반납 예정일이 한국 시간 오늘보다 과거면 400 VALIDATION_FAILED, 오늘·미래·비우기·생략·이미 저장된 값 그대로는 통과한다")
     void dueAtNotInPast() {

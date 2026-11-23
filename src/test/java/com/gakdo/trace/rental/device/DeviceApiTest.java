@@ -56,6 +56,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 관리자가 기기 상세를 보고, 없는 기기를 보고, 고객이 본다.
     // [기대] 관리자는 계약 모양 그대로 받고, 없으면 404, 고객은 403.
+    //        ※ 응답 코드: 404 = 찾을 수 없음(없는 주소나 데이터), 403 = 권한 없음(누구인지는 알지만 허락되지 않은 일)
     @Test
     @DisplayName("기기 상세: ADMIN은 계약 Device 형식을 받고, 없는 기기는 404 NOT_FOUND, CUSTOMER는 403")
     void getDevice() throws Exception {
@@ -75,6 +76,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 관리자가 새 노트북을 등록한다.
     // [기대] 201과 기기 정보(기기 ID는 공개 ID)를 돌려준다.
+    //        ※ 응답 코드: 201 = 새로 만들어짐
     @Test
     @DisplayName("기기 등록은 201과 계약 Device 형식(deviceId는 publicId)을 돌려준다")
     void registerDevice() throws Exception {
@@ -94,6 +96,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 이미 있는 일련번호로 등록한다.
     // [기대] 409 DEVICE_SERIAL_EXISTS.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("같은 시리얼로 기기를 등록하면 409 DEVICE_SERIAL_EXISTS(Problem Details)")
     void duplicateSerial() throws Exception {
@@ -109,6 +112,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 모르는 칸, 빠진 칸, 틀린 코드 값(예: 없는 OS)으로 등록한다.
     // [기대] 400 VALIDATION_FAILED.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("등록 본문의 모르는 필드·빠진 필드·틀린 코드 값은 400 VALIDATION_FAILED")
     void invalidCreateBody() throws Exception {
@@ -130,6 +134,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 기기 수정에 일련번호를 넣어 보낸다.
     // [기대] 400. 일련번호는 등록 뒤 바꿀 수 없다(기록 바꿔치기 방지).
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("PATCH에 serial을 보내면 400이고 서비스는 불리지 않는다(시리얼은 등록 뒤 바꿀 수 없다)")
     void patchSerialRejected() throws Exception {
@@ -142,6 +147,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 진행 중 렌탈이 있는 기기를 수리 중으로 바꾼다.
     // [기대] 409 DEVICE_HAS_OPEN_RENTAL.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("진행 중 렌탈이 있는 기기를 수리 중으로 바꾸면 409 DEVICE_HAS_OPEN_RENTAL")
     void patchWithOpenRental() throws Exception {
@@ -155,6 +161,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 폐기 기기를 바로 사용 가능으로 바꾼다.
     // [기대] 409 DEVICE_STATUS_TRANSITION_INVALID.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("폐기 기기를 사용 가능으로 바로 바꾸면 409 DEVICE_STATUS_TRANSITION_INVALID(Problem Details)")
     void patchRetiredToActive() throws Exception {
@@ -184,6 +191,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 개수 0, 없는 상태 값, 깨진 커서로 찾는다.
     // [기대] 400.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("목록 파라미터 형식 오류(limit 0, 상태 값, 깨진 커서)는 400")
     void searchInvalidParams() throws Exception {
@@ -199,6 +207,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 로그인 없이, 고객으로 기기 API를 부른다.
     // [기대] 로그인 없음 401, 고객 403(기기 관리는 관리자만).
+    //        ※ 응답 코드: 401 = 로그인 필요(토큰이 없거나 만료·위조됨), 403 = 권한 없음(누구인지는 알지만 허락되지 않은 일)
     @Test
     @DisplayName("기기 API는 ADMIN만: 토큰 없으면 401 UNAUTHENTICATED, CUSTOMER면 403 FORBIDDEN")
     void deviceAccess() throws Exception {
@@ -252,6 +261,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 치수 0 이하·빠진 치수·잘못된 기종 코드로 저장하고, 없는 기종을 조회한다.
     // [기대] 저장은 400, 없는 기종 조회는 404.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음, 404 = 찾을 수 없음(없는 주소나 데이터)
     @Test
     @DisplayName("기종 저장: 치수 0 이하·빠진 치수·잘못된 기종 코드는 400, 없는 기종 조회는 404")
     void modelValidation() throws Exception {
@@ -268,6 +278,7 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 기종 사양에 GPU를 넣거나 빼고, 128자를 넘겨 넣는다.
     // [기대] GPU는 선택 항목으로 저장되고, 너무 길면 400.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("기준 사양에 GPU를 선택으로 저장하고, 128자를 넘으면 400")
     void modelSpecGpu() throws Exception {
@@ -291,6 +302,8 @@ class DeviceApiTest extends WebTestBase {
 
     // [상황] 관리자가 기기·기종을 지우고, 이력이 있는 것을 지우고, 고객이 지워 본다.
     // [기대] 관리자 정상 삭제 204, 이력이 있으면 409(DEVICE_IN_USE·DEVICE_MODEL_IN_USE), 고객 403.
+    //        ※ 응답 코드: 204 = 처리됨, 돌려줄 내용 없음, 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등),
+    //          403 = 권한 없음(누구인지는 알지만 허락되지 않은 일)
     @Test
     @DisplayName("기기·기종 지우기: ADMIN은 204, 이력이 있으면 409(DEVICE_IN_USE·DEVICE_MODEL_IN_USE), CUSTOMER는 403")
     void deleteDeviceAndModel() throws Exception {
