@@ -86,6 +86,7 @@ class RentalDeleteServiceTest {
 
     // [상황] 실제 기기(C02...)의 렌탈을 지운다.
     // [기대] 409 NOT_TEST_DATA, 아무것도 지우지 않는다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("시리얼이 TEST-로 시작하지 않는 렌탈은 409 NOT_TEST_DATA이고 아무것도 지우지 않는다")
     void refusesRealRental() {
@@ -103,6 +104,7 @@ class RentalDeleteServiceTest {
 
     // [상황] 없는 렌탈을 지운다.
     // [기대] 404.
+    //        ※ 응답 코드: 404 = 찾을 수 없음(없는 주소나 데이터)
     @Test
     @DisplayName("없는 렌탈은 404")
     void missingRental() {

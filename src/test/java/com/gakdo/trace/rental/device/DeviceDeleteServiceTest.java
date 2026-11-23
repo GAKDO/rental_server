@@ -68,6 +68,7 @@ class DeviceDeleteServiceTest {
 
     // [상황] 렌탈 이력이 있는 실제 기기를 지운다.
     // [기대] 409 DEVICE_IN_USE, 아무것도 지우지 않는다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("렌탈 이력이 있는 실제 기기는 409 DEVICE_IN_USE이고 아무것도 지우지 않는다")
     void refusesRealDeviceWithRentals() {
@@ -97,6 +98,7 @@ class DeviceDeleteServiceTest {
 
     // [상황] 파일럿(실사용 시범) 참가 기록이 있는 시험 기기를 지운다.
     // [기대] 409 DEVICE_IN_USE(참가 기록은 보존).
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("파일럿 참가 기록이 있는 기기는 시험 기기라도 409 DEVICE_IN_USE")
     void refusesPilotDevice() {
@@ -112,6 +114,7 @@ class DeviceDeleteServiceTest {
 
     // [상황] 없는 기기를 지운다.
     // [기대] 404.
+    //        ※ 응답 코드: 404 = 찾을 수 없음(없는 주소나 데이터)
     @Test
     @DisplayName("없는 기기를 지우면 404")
     void missingDevice() {
@@ -136,6 +139,7 @@ class DeviceDeleteServiceTest {
 
     // [상황] 기기가 등록된 기종을 지운다.
     // [기대] 409 DEVICE_MODEL_IN_USE.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("기기가 등록된 기종은 409 DEVICE_MODEL_IN_USE이고 지우지 않는다")
     void refusesModelInUse() {
@@ -150,6 +154,7 @@ class DeviceDeleteServiceTest {
 
     // [상황] "기기 없음" 확인 직후 다른 관리자가 그 기종으로 기기를 등록해 DB가 삭제를 막는다.
     // [기대] DB 오류를 그대로 보이지 않고 같은 409로 바꿔 알린다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("확인 뒤 기기가 동시에 등록돼 외래 키가 막으면 같은 409로 바꾼다")
     void modelRaceBecomesConflict() {
@@ -163,6 +168,7 @@ class DeviceDeleteServiceTest {
 
     // [상황] 없는 기종을 지운다.
     // [기대] 404.
+    //        ※ 응답 코드: 404 = 찾을 수 없음(없는 주소나 데이터)
     @Test
     @DisplayName("없는 기종을 지우면 404")
     void missingModel() {

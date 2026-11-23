@@ -62,6 +62,7 @@ class DeviceDomainTest {
 
     // [상황] 폐기 기기를 바로 사용 가능으로 바꾼다.
     // [기대] 409, 아무것도 바뀌지 않는다(수리 중을 거쳐야 함).
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("폐기 기기를 사용 가능으로 바로 바꾸면 409 DEVICE_STATUS_TRANSITION_INVALID이고 아무것도 바뀌지 않는다")
     void retiredToActiveRejected() {
@@ -106,6 +107,7 @@ class DeviceDomainTest {
 
     // [상황] 수정 본문에 일련번호·기종 코드를 넣는다.
     // [기대] 400.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("시리얼은 등록 뒤 바꿀 수 없다: PATCH 본문에 serial·modelCode가 있으면 400")
     void serialImmutable() {
@@ -119,6 +121,7 @@ class DeviceDomainTest {
 
     // [상황] 빈 본문, 모르는 값, 너무 긴 값.
     // [기대] 400.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("PATCH 본문 형식: 빈 본문·모르는 값·너무 긴 값은 400")
     void parseRejectsInvalid() {

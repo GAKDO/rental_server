@@ -55,6 +55,7 @@ class CommonInfraTest {
 
     // [상황] 깨진 커서를 넣는다.
     // [기대] 400 VALIDATION_FAILED.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("깨진 커서는 400 VALIDATION_FAILED")
     void brokenCursor() {
