@@ -1,3 +1,5 @@
+// 이 파일이 확인하는 것: 기기·기종 지우기 규칙(11/10 추가). 이력이 있는 실제 기기는 지우지 않는다(기록 보존).
+
 package com.gakdo.trace.rental.device;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,12 +45,15 @@ class DeviceDeleteServiceTest {
         modelService = new DeviceModelService(models, devices);
     }
 
+    // 도우미: 그 일련번호의 기기가 있는 것처럼 준비한다.
     private Device given(String serial) {
         Device device = Fixtures.device(serial);
         when(devices.lockByPublicId(device.getPublicId())).thenReturn(Optional.of(device));
         return device;
     }
 
+    // [상황] 렌탈·파일럿 이력이 없는 실제 기기를 지운다.
+    // [기대] 지운다(잘못 등록한 기기 정리).
     @Test
     @DisplayName("렌탈·파일럿 이력이 없는 실제 기기는 지운다")
     void deletesUnusedDevice() {
@@ -61,6 +66,9 @@ class DeviceDeleteServiceTest {
         verify(rentalService, never()).purgeAllOf(any());
     }
 
+    // [상황] 렌탈 이력이 있는 실제 기기를 지운다.
+    // [기대] 409 DEVICE_IN_USE, 아무것도 지우지 않는다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("렌탈 이력이 있는 실제 기기는 409 DEVICE_IN_USE이고 아무것도 지우지 않는다")
     void refusesRealDeviceWithRentals() {
@@ -74,6 +82,8 @@ class DeviceDeleteServiceTest {
         verify(rentalService, never()).purgeAllOf(any());
     }
 
+    // [상황] TEST- 시험 기기에 렌탈이 있다.
+    // [기대] 렌탈을 시험 렌탈 지우기처럼 함께 지우고 기기도 지운다.
     @Test
     @DisplayName("TEST- 시험 기기는 렌탈이 있어도 렌탈을 시험 렌탈 지우기처럼 함께 지우고 기기도 지운다")
     void deletesTestDeviceWithRentals() {
@@ -86,6 +96,9 @@ class DeviceDeleteServiceTest {
         verify(devices).deleteRow(any());
     }
 
+    // [상황] 파일럿(실사용 시범) 참가 기록이 있는 시험 기기를 지운다.
+    // [기대] 409 DEVICE_IN_USE(참가 기록은 보존).
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("파일럿 참가 기록이 있는 기기는 시험 기기라도 409 DEVICE_IN_USE")
     void refusesPilotDevice() {
@@ -99,6 +112,9 @@ class DeviceDeleteServiceTest {
         verify(devices, never()).deleteRow(any());
     }
 
+    // [상황] 없는 기기를 지운다.
+    // [기대] 404.
+    //        ※ 응답 코드: 404 = 찾을 수 없음(없는 주소나 데이터)
     @Test
     @DisplayName("없는 기기를 지우면 404")
     void missingDevice() {
@@ -107,6 +123,8 @@ class DeviceDeleteServiceTest {
                 .extracting(e -> ((DomainException) e).code()).isEqualTo(ErrorCode.NOT_FOUND);
     }
 
+    // [상황] 등록된 기기가 없는 기종을 지운다.
+    // [기대] 지운다.
     @Test
     @DisplayName("기기가 없는 기종은 지운다")
     void deletesUnusedModel() {
@@ -119,6 +137,9 @@ class DeviceDeleteServiceTest {
         verify(models).delete(model);
     }
 
+    // [상황] 기기가 등록된 기종을 지운다.
+    // [기대] 409 DEVICE_MODEL_IN_USE.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("기기가 등록된 기종은 409 DEVICE_MODEL_IN_USE이고 지우지 않는다")
     void refusesModelInUse() {
@@ -131,6 +152,9 @@ class DeviceDeleteServiceTest {
         verify(models, never()).delete(any(DeviceModel.class));
     }
 
+    // [상황] "기기 없음" 확인 직후 다른 관리자가 그 기종으로 기기를 등록해 DB가 삭제를 막는다.
+    // [기대] DB 오류를 그대로 보이지 않고 같은 409로 바꿔 알린다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("확인 뒤 기기가 동시에 등록돼 외래 키가 막으면 같은 409로 바꾼다")
     void modelRaceBecomesConflict() {
@@ -142,6 +166,9 @@ class DeviceDeleteServiceTest {
                 .extracting(e -> ((DomainException) e).code()).isEqualTo(ErrorCode.DEVICE_MODEL_IN_USE);
     }
 
+    // [상황] 없는 기종을 지운다.
+    // [기대] 404.
+    //        ※ 응답 코드: 404 = 찾을 수 없음(없는 주소나 데이터)
     @Test
     @DisplayName("없는 기종을 지우면 404")
     void missingModel() {

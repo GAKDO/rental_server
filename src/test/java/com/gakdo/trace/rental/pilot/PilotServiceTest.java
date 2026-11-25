@@ -1,3 +1,5 @@
+// 이 파일이 확인하는 것: 파일럿 참가자 등록 규칙(DB 없이).
+
 package com.gakdo.trace.rental.pilot;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +33,8 @@ class PilotServiceTest {
     private final Device device = Fixtures.device("C02PILOT0001");
     private final OffsetDateTime consent = OffsetDateTime.parse("2026-11-05T14:00:00+09:00");
 
+    // [상황] 별칭 P01·기기·한국 시간 동의 시각으로 등록한다.
+    // [기대] 별칭과 기기 ID만 저장하고, 동의 시각은 UTC로 바꿔 둔다. 참가자 ID는 21자 공개 ID.
     @Test
     @DisplayName("등록하면 별칭과 기기 ID만 저장하고 동의 시각은 UTC로 둔다")
     void registers() {
@@ -45,6 +49,10 @@ class PilotServiceTest {
         assertThat(r.participantId()).matches("^[A-Za-z0-9_-]{21}$");
     }
 
+    // [상황] 이미 쓰는 별칭, 없는 기기, 내일 날짜의 동의 시각으로 등록한다.
+    // [기대] 각각 409·404·400이고 아무것도 저장하지 않는다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등), 404 = 찾을 수 없음(없는 주소나 데이터),
+    //          400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("이미 쓰는 별칭은 409, 없는 기기는 404, 미래 동의 시각은 400이다")
     void rejects() {

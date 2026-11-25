@@ -27,10 +27,7 @@ public class BoothCode {
     @Column(name = "code_hash", nullable = false, updatable = false, length = 64)
     private String codeHash;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "rental_id", nullable = false, updatable = false)
-    private Rental rental;
-
+    /** 렌탈은 따로 두지 않는다. 시점이 렌탈을 정하므로(checkpoint.rental_id) 두 번 적으면 어긋날 수 있다(V5). */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "checkpoint_id", nullable = false, updatable = false)
     private Checkpoint checkpoint;
@@ -47,11 +44,10 @@ public class BoothCode {
     protected BoothCode() {
     }
 
-    public static BoothCode issue(String codeHash, Rental rental, Checkpoint checkpoint, OffsetDateTime now,
+    public static BoothCode issue(String codeHash, Checkpoint checkpoint, OffsetDateTime now,
             OffsetDateTime expiresAt) {
         BoothCode code = new BoothCode();
         code.codeHash = codeHash;
-        code.rental = rental;
         code.checkpoint = checkpoint;
         code.createdAt = now;
         code.expiresAt = expiresAt;
@@ -67,8 +63,9 @@ public class BoothCode {
         return id;
     }
 
+    /** 이 코드의 렌탈. 시점에서 따라간다. */
     public Rental getRental() {
-        return rental;
+        return checkpoint.getRental();
     }
 
     public Checkpoint getCheckpoint() {

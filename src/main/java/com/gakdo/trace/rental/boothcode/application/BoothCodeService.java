@@ -87,7 +87,7 @@ public class BoothCodeService {
                 continue; // 지금 살아 있는 다른 렌탈의 코드와 같으면 다시 뽑는다
             }
             OffsetDateTime expiresAt = now.plus(TTL);
-            codes.save(BoothCode.issue(hash, rental, checkpoint, now, expiresAt));
+            codes.save(BoothCode.issue(hash, checkpoint, now, expiresAt));
             return new Issued(code, expiresAt, checkpoint.getPublicId(), checkpoint.getType());
         }
         throw new IllegalStateException("부스 코드를 만들지 못했습니다(겹침이 계속됨).");

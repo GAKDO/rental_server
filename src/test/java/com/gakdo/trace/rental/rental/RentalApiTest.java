@@ -1,3 +1,5 @@
+// 이 파일이 확인하는 것: 렌탈 API(만들기·조회·목록·시점 시작·종료·시험 렌탈 지우기·정보 고치기)와 누가 쓸 수 있는지.
+
 package com.gakdo.trace.rental.rental;
 
 import static com.gakdo.trace.rental.support.TestJwts.admin;
@@ -53,6 +55,9 @@ class RentalApiTest extends WebTestBase {
     @MockitoBean
     private RentalService service;
 
+    // [상황] 관리자가 렌탈을 만든다.
+    // [기대] 201, 새 렌탈 주소, 상태 OPEN, 시점은 아직 없음.
+    //        ※ 응답 코드: 201 = 새로 만들어짐
     @Test
     @DisplayName("렌탈 생성은 201, Location, 상태 OPEN, checkpoints []")
     void openRental() throws Exception {
@@ -68,6 +73,9 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.checkpoints").isEmpty());
     }
 
+    // [상황] 진행 중 렌탈이 있는 기기, 수리 중·폐기 기기로 렌탈을 만든다.
+    // [기대] 각각 409 RENTAL_OPEN_EXISTS, 409 DEVICE_NOT_ACTIVE.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("같은 시리얼로 진행 중인 렌탈이 있으면 409 RENTAL_OPEN_EXISTS, 수리 중·폐기 기기면 409 DEVICE_NOT_ACTIVE")
     void openConflicts() throws Exception {
@@ -81,6 +89,9 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DEVICE_NOT_ACTIVE"));
     }
 
+    // [상황] 기기 ID 모양이 틀리거나 대여자 참조가 없다.
+    // [기대] 400.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("deviceId가 PublicId 형식이 아니거나 renterRef가 없으면 400")
     void openValidation() throws Exception {
@@ -91,6 +102,8 @@ class RentalApiTest extends WebTestBase {
         verifyNoInteractions(service);
     }
 
+    // [상황] 렌탈을 조회한다.
+    // [기대] 세 시점 상태를 출고·수령·반납 순서로 준다.
     @Test
     @DisplayName("렌탈 조회는 세 시점 상태를 OUT·RCV·RET 순으로 준다")
     void getRental() throws Exception {
@@ -106,6 +119,8 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.startedAt").isNotEmpty());
     }
 
+    // [상황] 렌탈 상세를 본다.
+    // [기대] 기기 일련번호가 들어 있다.
     @Test
     @DisplayName("렌탈 상세에 기기 시리얼(serial)이 있다")
     void getRentalHasSerial() throws Exception {
@@ -116,6 +131,8 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.serial").value("C02EXAMPLE01"));
     }
 
+    // [상황] 렌탈 목록을 본다.
+    // [기대] "지금 시점"은 가장 늦게 시작한 시점이고, 아무 시점도 시작 전이면 비어 있다.
     @Test
     @DisplayName("렌탈 목록 요약의 currentCheckpoint는 가장 늦게 시작한 시점이고, 시작 전이면 null")
     void listHasCurrentCheckpoint() throws Exception {
@@ -132,6 +149,8 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.items[1].currentCheckpoint").isEmpty());
     }
 
+    // [상황] 기기 하나로 걸러 렌탈 이력을 본다.
+    // [기대] 그 기기 렌탈만 나오고 대여자·출고 시작·종료 시각이 있다.
     @Test
     @DisplayName("기기별 렌탈 이력: deviceId로 거르면 그 기기 렌탈만 받고, 항목에 대여자·출고 시작·종료 때가 있다")
     void listByDevice() throws Exception {
@@ -147,6 +166,9 @@ class RentalApiTest extends WebTestBase {
         verify(service).list(isNull(), eq(DEVICE), eq(false), isNull(), eq(20), any());
     }
 
+    // [상황] 기기 ID 모양이 틀렸다.
+    // [기대] 400.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("기기별 렌탈 이력: deviceId 형식이 틀리면 400")
     void listByDeviceInvalidId() throws Exception {
@@ -154,6 +176,9 @@ class RentalApiTest extends WebTestBase {
         verifyNoInteractions(service);
     }
 
+    // [상황] 고객이 남의 렌탈을 본다.
+    // [기대] 403 OUT_OF_SCOPE.
+    //        ※ 응답 코드: 403 = 권한 없음(누구인지는 알지만 허락되지 않은 일)
     @Test
     @DisplayName("CUSTOMER가 남의 렌탈을 보면 403 OUT_OF_SCOPE")
     void outOfScope() throws Exception {
@@ -163,6 +188,8 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.code").value("OUT_OF_SCOPE"));
     }
 
+    // [상황] 고객이 렌탈 목록을 본다.
+    // [기대] 자기 렌탈(토큰의 렌탈 목록)만 나오고 일련번호·기종이 있다.
     @Test
     @DisplayName("렌탈 목록: CUSTOMER는 rentals 클레임으로 걸러지고 요약에 시리얼·기종 코드가 있다")
     void listRentals() throws Exception {
@@ -179,6 +206,9 @@ class RentalApiTest extends WebTestBase {
         org.assertj.core.api.Assertions.assertThat(user.getValue().rentals()).containsExactly(rental.getPublicId());
     }
 
+    // [상황] 부스 토큰으로 렌탈 목록·상세·시점 시작을 부른다.
+    // [기대] 목록만 볼 수 있고(태블릿에서 렌탈 고르기) 상세·시점 시작은 403.
+    //        ※ 응답 코드: 403 = 권한 없음(누구인지는 알지만 허락되지 않은 일)
     @Test
     @DisplayName("부스 토큰은 렌탈 목록만 볼 수 있고, 렌탈 상세와 시점 시작은 403")
     void boothListsRentals() throws Exception {
@@ -198,6 +228,9 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(status().isForbidden());
     }
 
+    // [상황] 관리자가 시점을 시작하고, 순서를 어겨 시작하고, 고객이 시작해 본다.
+    // [기대] 관리자만 가능, 순서 위반은 409 CHECKPOINT_ORDER_VIOLATION.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("시점 시작은 ADMIN만, 순서를 어기면 409 CHECKPOINT_ORDER_VIOLATION")
     void startCheckpoint() throws Exception {
@@ -222,6 +255,9 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.status").value("OPEN"));
     }
 
+    // [상황] 반납 완료(RETURNED) 렌탈, 그렇지 않은 렌탈, 없는 렌탈을 종료한다.
+    // [기대] 204, 409 RENTAL_NOT_CLOSABLE, 404.
+    //        ※ 응답 코드: 204 = 처리됨, 돌려줄 내용 없음, 404 = 찾을 수 없음(없는 주소나 데이터)
     @Test
     @DisplayName("종료: RETURNED면 204, 아니면 409 RENTAL_NOT_CLOSABLE, 없는 렌탈은 404")
     void closeRental() throws Exception {
@@ -237,6 +273,9 @@ class RentalApiTest extends WebTestBase {
         mvc.perform(post("/api/v1/rentals/short/close").with(admin())).andExpect(status().isBadRequest());
     }
 
+    // [상황] 관리자가 시험 렌탈과 실제 렌탈을 지운다.
+    // [기대] 시험 렌탈 204, 실제 렌탈 409 NOT_TEST_DATA.
+    //        ※ 응답 코드: 204 = 처리됨, 돌려줄 내용 없음, 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("관리자가 시험 렌탈을 지우면 204, 시험 데이터가 아니면 409 NOT_TEST_DATA")
     void deleteTestRental() throws Exception {
@@ -248,6 +287,9 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("NOT_TEST_DATA"));
     }
 
+    // [상황] 고객·부스가 렌탈을 지운다.
+    // [기대] 403.
+    //        ※ 응답 코드: 403 = 권한 없음(누구인지는 알지만 허락되지 않은 일)
     @Test
     @DisplayName("고객·부스는 렌탈을 지울 수 없다(403)")
     void deleteNeedsAdmin() throws Exception {
@@ -255,6 +297,9 @@ class RentalApiTest extends WebTestBase {
         mvc.perform(delete("/api/v1/rentals/" + DEVICE).with(booth())).andExpect(status().isForbidden());
     }
 
+    // [상황] 고객 이름·반납 예정일·메모를 넣어 렌탈을 만든다. 64자 넘는 이름도 넣어 본다.
+    // [기대] 응답에 그대로 실리고, 너무 긴 이름은 400.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("렌탈 생성 때 고객 이름·반납 예정일·메모를 받아 응답에 싣고, 64자를 넘는 이름은 400")
     void openWithDetails() throws Exception {
@@ -274,6 +319,8 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(status().isBadRequest());
     }
 
+    // [상황] 고객이 자기 렌탈을 본다.
+    // [기대] 관리자 메모는 비어 보이고 이름·반납 예정일은 보인다.
     @Test
     @DisplayName("고객이 자기 렌탈을 보면 관리자 메모는 null이고 이름·반납 예정일은 보인다")
     void customerSeesNoNote() throws Exception {
@@ -288,6 +335,8 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.note").value("내부 메모"));
     }
 
+    // [상황] "문제 있는 검사만" 목록을 관리자·부스가 본다.
+    // [기대] 거르기 조건을 넘기고 전체 건수를 싣는다. 고객 이름은 관리자에게만, 부스에는 비어 보인다.
     @Test
     @DisplayName("목록: problem=true를 서비스에 넘기고 totalCount를 싣는다. 고객 이름은 관리자에게만, 부스에는 null")
     void listProblemAndTotal() throws Exception {
@@ -305,6 +354,9 @@ class RentalApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.items[0].customerName").isEmpty());
     }
 
+    // [상황] 렌탈 정보를 일부 고친다. 빈 본문·모르는 칸·틀린 날짜·고객 요청도 해 본다.
+    // [기대] 보낸 칸만 바뀌고 null은 비운다. 잘못된 요청은 400, 고객은 403.
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음, 403 = 권한 없음(누구인지는 알지만 허락되지 않은 일)
     @Test
     @DisplayName("PATCH: 보낸 칸만 바꾸고 null은 비우며, 빈 본문·모르는 필드·잘못된 날짜는 400, 고객은 403")
     void patchDetails() throws Exception {

@@ -1,3 +1,7 @@
+// 이 파일이 확인하는 것: rental-server(렌탈·기기·기종·부스 코드 서버)의 주요 흐름을 진짜 DB(PostgreSQL)와
+// 메시지 큐(RabbitMQ)로 끝까지 확인. 렌탈 한 건은 출고(OUT) → 수령(RCV) → 반납(RET) 세 시점을 순서대로 거친다.
+// Docker가 없는 곳(Claude 세션)에서는 건너뛰고 GitHub Actions에서만 돈다.
+
 package com.gakdo.trace.rental;
 
 import static com.gakdo.trace.rental.support.TestJwts.admin;
@@ -83,6 +87,9 @@ class RentalIntegrationTest {
     @Autowired
     private AmqpAdmin amqpAdmin;
 
+    // [상황] 같은 노트북(같은 일련번호)으로 렌탈 만들기 요청 10개가 동시에 들어온다.
+    // [기대] 1개만 성공(201)하고 나머지는 거절된다. 한 기기에 진행 중 렌탈이 둘 생기지 않는다.
+    //        ※ 응답 코드: 201 = 새로 만들어짐
     @Test
     @DisplayName("같은 시리얼로 진행 중인 렌탈이 2건 생기지 않는다(동시 요청 10개 중 1개만 201)")
     void onlyOneOpenRentalUnderConcurrency() throws Exception {
@@ -115,6 +122,8 @@ class RentalIntegrationTest {
         assertThat(open).isEqualTo(1);
     }
 
+    // [상황] 출고 전에 수령을 시작해 보고 → 출고·수령·반납을 촬영·봉인 이벤트로 차례로 진행 → 렌탈 종료 → 같은 기기로 새 렌탈.
+    // [기대] 출고 전 수령은 거부, 세 시점이 봉인되면 반납 완료(RETURNED), 종료하면 CLOSED, 그 뒤 새 렌탈을 만들 수 있다.
     @Test
     @DisplayName("세 시점 흐름: 출고 전 수령 거부 → 이벤트로 봉인 → RETURNED → 종료, 그 뒤 같은 기기로 새 렌탈")
     void threeCheckpointFlow() throws Exception {
@@ -211,6 +220,9 @@ class RentalIntegrationTest {
         mvc.perform(get("/api/v1/rentals/" + rentalId).with(customer())).andExpect(status().isForbidden());
     }
 
+    // [상황] 수리 중·폐기 기기로 렌탈을 만들고, 진행 중 렌탈이 있는 기기의 상태를 바꾸려 한다.
+    // [기대] 렌탈 만들기는 409. 폐기해도 기기 기록은 지워지지 않는다(이력 보존). 진행 중 렌탈이 있으면 상태 변경 불가.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("수리 중·폐기 기기로 렌탈을 만들면 409이고 폐기해도 행은 남는다, 진행 중 렌탈이 있으면 상태를 못 바꾼다")
     void retiredDeviceKeepsRow() throws Exception {
@@ -238,6 +250,9 @@ class RentalIntegrationTest {
                 deviceId)).isEqualTo("admin0000000000000001");
     }
 
+    // [상황] 폐기 기기를 "사용 가능"으로 바로 바꾸고, "수리 중"으로도 되돌려 본다.
+    // [기대] 바로 사용 가능은 409. 수리 중으로는 되돌릴 수 있고 폐기 시각이 지워진다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("폐기 기기는 사용 가능으로 바로 못 바꾸고(409), 수리 중으로는 되돌리며 retiredAt이 비워진다")
     void retiredDeviceTransitions() throws Exception {
@@ -265,6 +280,10 @@ class RentalIntegrationTest {
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
 
+    // [상황] 일련번호 TEST-로 시작하는 시험 렌탈을 관리자가 지우고, 실제 렌탈도 지워 본다.
+    // [기대] 시험 렌탈은 렌탈·시점·기기가 사라지고 시점마다 "시험 시점 지움" 이벤트가 나간다(다른 서버도 지우게).
+    //        같은 일련번호로 다시 등록된다. 실제 렌탈은 409로 지우지 않는다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("시험 렌탈(TEST-)을 지우면 렌탈·시점·기기가 사라지고 시점마다 purged가 나가며, 같은 시리얼로 다시 등록된다. 실제 렌탈은 409")
     void deleteTestRental() throws Exception {
@@ -296,6 +315,8 @@ class RentalIntegrationTest {
         mvc.perform(get("/api/v1/rentals/" + real).with(admin())).andExpect(status().isOk());
     }
 
+    // [상황] 처음 DB를 만들 때 넣는 기종 기본값(맥북 에어 13 M2)을 조회하고, 기본값 넣기를 다시 돌린다.
+    // [기대] 가로·세로·본체 두께·덮개 두께 4개 치수와 함께 조회되고, 다시 돌려도 한 건뿐이다.
     @Test
     @DisplayName("기종 시드 V2: MBA13-M2가 치수 4개와 함께 조회되고, 시드를 다시 돌려도 한 건이다")
     void seedDeviceModel() throws Exception {
@@ -317,6 +338,10 @@ class RentalIntegrationTest {
                 Integer.class)).isEqualTo(1);
     }
 
+    // [상황] 부스 코드(관리자가 발급하는 6자리 숫자, 부스 태블릿이 이걸로 어떤 렌탈을 찍을지 고름) 흐름 전체.
+    // [기대] 출고 시점 전 발급은 409. 발급한 코드로 부스가 기기·렌탈·시점 ID를 한 번만 받는다.
+    //        다시 발급하면 앞 코드는 못 쓰고, 이미 촬영한 시점의 코드는 410(만료).
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등), 410 = 이미 쓰였거나 만료되어 더는 쓸 수 없음
     @Test
     @DisplayName("부스 코드: 출고 전 발급은 409, 발급한 코드로 세 ID를 한 번만 받고, 다시 발급하면 앞 코드는 못 쓰며, 찍은 시점의 코드는 410")
     void boothCodeFlow() throws Exception {
@@ -376,6 +401,9 @@ class RentalIntegrationTest {
                 .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
     }
 
+    // [상황] 같은 일련번호로 기기를 두 번 등록하고, 없는 기종으로 등록하고, 기종 이름으로 치수를 조회한다.
+    // [기대] 중복 409, 없는 기종 404, 치수는 3D 화면용으로 조회된다.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등), 404 = 찾을 수 없음(없는 주소나 데이터)
     @Test
     @DisplayName("시리얼 중복은 409, 없는 기종은 404, 모델명으로 3D 트윈 치수를 조회한다")
     void deviceAndModelRules() throws Exception {
@@ -393,6 +421,8 @@ class RentalIntegrationTest {
                 .andExpect(jsonPath("$.spec.cpu").value("Apple M2"));
     }
 
+    // [상황] 기기 목록을 기종·상태·일련번호 일부로 찾고 여러 쪽으로 나눠 넘긴다.
+    // [기대] 조건대로 걸러지고, 쪽을 넘겨도 같은 기기가 두 번 나오거나 빠지지 않는다.
     @Test
     @DisplayName("기기 목록은 기종·상태·시리얼 일부로 찾고 커서로 겹침 없이 넘긴다")
     void devicePaging() throws Exception {
@@ -412,6 +442,8 @@ class RentalIntegrationTest {
         assertThat(seen).containsExactly("PG-SER-4", "PG-SER-3", "PG-SER-2", "PG-SER-1", "PG-SER-0");
     }
 
+    // [상황] 기기 하나의 렌탈 이력을 본다(상태 거르기 포함).
+    // [기대] 그 기기의 렌탈만 최근 순으로 나오고, 기기 상세는 관리자에게 보인다.
     @Test
     @DisplayName("기기별 렌탈 이력: deviceId로 그 기기 렌탈만 최근 순으로, status와 겹쳐 거르고, 기기 상세는 ADMIN에게 보인다")
     void deviceRentalHistory() throws Exception {
@@ -438,6 +470,9 @@ class RentalIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // [상황] 관리자 화면에서 "문제 있는 검사만 보기"를 켠다.
+    // [기대] 지금 시점 등급이 B·C·D(흠집 있음)인 렌탈만 나오고 전체 건수도 같은 조건으로 센다.
+    //        다음 시점을 시작하면 목록에서 빠진다.
     @Test
     @DisplayName("문제 있는 검사만 보기: 지금 시점 등급이 B·C·D인 렌탈만 나오고 totalCount가 같은 조건의 건수다. 다음 시점을 시작하면 빠진다")
     void problemFilterAndTotalCount() throws Exception {
@@ -467,29 +502,38 @@ class RentalIntegrationTest {
                 .andExpect(jsonPath("$.items.length()").value(1)));
     }
 
+    // [상황] 렌탈을 만들 때 고객 이름·반납 예정일·관리자 메모를 넣고, 나중에 고치고, 고객이 자기 렌탈을 본다.
+    // [기대] 관리자는 넣고 고칠 수 있다. 고객에게는 관리자 메모가 비어 보이고, 고객은 고칠 수 없다.
     @Test
     @DisplayName("렌탈 고객 이름·반납 예정일·메모: 생성 때 받고 PATCH로 고치며, 고객에게는 메모가 null이고 고객은 고칠 수 없다")
     void rentalDetails() throws Exception {
+        String due = com.gakdo.trace.rental.rental.domain.RentalDetails.today().plusDays(6).toString();
+        String due2 = com.gakdo.trace.rental.rental.domain.RentalDetails.today().plusDays(7).toString();
         upsertModel("DET-1");
         String deviceId = registerDevice("SER-DET-1", "DET-1");
         MvcResult created = mvc.perform(post("/api/v1/rentals").with(admin()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"deviceId\":\"" + deviceId + "\",\"renterRef\":\"R-1\",\"customerName\":\" 김고객 \","
-                        + "\"dueAt\":\"2026-11-19\",\"note\":\"충전기 함께\"}"))
+                        + "\"dueAt\":\"" + due + "\",\"note\":\"충전기 함께\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.customerName").value("김고객"))
-                .andExpect(jsonPath("$.dueAt").value("2026-11-19"))
+                .andExpect(jsonPath("$.dueAt").value(due))
                 .andExpect(jsonPath("$.note").value("충전기 함께"))
                 .andReturn();
         String rentalId = json.readTree(created.getResponse().getContentAsString()).path("rentalId").asText();
 
         mvc.perform(patch("/api/v1/rentals/" + rentalId).with(admin()).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"dueAt\":\"2026-11-20\",\"note\":null}"))
+                .content("{\"dueAt\":\"" + due2 + "\",\"note\":null}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.customerName").value("김고객"))
-                .andExpect(jsonPath("$.dueAt").value("2026-11-20"))
+                .andExpect(jsonPath("$.dueAt").value(due2))
                 .andExpect(jsonPath("$.note").isEmpty());
         mvc.perform(patch("/api/v1/rentals/" + rentalId).with(admin()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"note\":\"메모\"}")).andExpect(status().isOk());
+        String yesterday = com.gakdo.trace.rental.rental.domain.RentalDetails.today().minusDays(1).toString();
+        mvc.perform(patch("/api/v1/rentals/" + rentalId).with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"dueAt\":\"" + yesterday + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         mvc.perform(get("/api/v1/rentals/" + rentalId).with(customer(rentalId)))
                 .andExpect(jsonPath("$.customerName").value("김고객"))
                 .andExpect(jsonPath("$.note").isEmpty());
@@ -546,6 +590,7 @@ class RentalIntegrationTest {
         return json.readTree(result.getResponse().getContentAsString()).path("checkpointId").asText();
     }
 
+    // 도우미: 다른 서버가 보낸 것처럼 시점 이벤트(촬영됨·등급·봉인)를 메시지 큐에 넣는다.
     private void publish(String routingKey, String rentalId, String checkpointId) {
         String body = """
                 {"schemaVersion":"1.0","eventId":"%s","occurredAt":"2026-11-09T14:05:12+09:00",

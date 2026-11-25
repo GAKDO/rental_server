@@ -1,3 +1,6 @@
+// 이 파일이 확인하는 것: 부스 코드 API. 관리자가 렌탈에 6자리 코드를 발급하면, 부스 태블릿에서 그 코드를 넣어
+// 어떤 렌탈의 어느 시점을 찍을지 고른다(태블릿에 렌탈 목록을 다 보여 주지 않아도 됨).
+
 package com.gakdo.trace.rental.boothcode;
 
 import static com.gakdo.trace.rental.support.TestJwts.admin;
@@ -40,6 +43,9 @@ class BoothCodeApiTest extends WebTestBase {
     @MockitoBean
     private BoothCodeService service;
 
+    // [상황] 관리자가 렌탈에 부스 코드를 발급한다.
+    // [기대] 201과 6자리 코드·만료 시각·묶인 시점(출고)을 받는다.
+    //        ※ 응답 코드: 201 = 새로 만들어짐
     @Test
     @DisplayName("관리자가 발급하면 201과 6자리 코드·만료 시각·묶인 시점을 받는다")
     void adminIssues() throws Exception {
@@ -53,6 +59,9 @@ class BoothCodeApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.expiresAt").exists());
     }
 
+    // [상황] 부스·고객이 발급하려 하고, 관리자·고객이 코드를 넣으려 하고, 로그인 없이 넣으려 한다.
+    // [기대] 발급은 관리자만, 코드 넣기는 부스만. 나머지는 403, 로그인 없으면 401.
+    //        ※ 응답 코드: 403 = 권한 없음(누구인지는 알지만 허락되지 않은 일), 401 = 로그인 필요(토큰이 없거나 만료·위조됨)
     @Test
     @DisplayName("부스·고객은 코드를 발급할 수 없고, 관리자·고객은 코드를 조회할 수 없다(403)")
     void rolesAreSeparated() throws Exception {
@@ -66,6 +75,8 @@ class BoothCodeApiTest extends WebTestBase {
         verifyNoInteractions(service);
     }
 
+    // [상황] 부스가 맞는 코드를 넣는다.
+    // [기대] 렌탈·기기·일련번호·기종·시점 ID를 받아 바로 촬영을 시작할 수 있다.
     @Test
     @DisplayName("부스가 맞는 코드를 넣으면 기기·렌탈·시점 ID를 받는다")
     void boothRedeems() throws Exception {
@@ -81,6 +92,9 @@ class BoothCodeApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.checkpointType").value("OUT"));
     }
 
+    // [상황] 5자리, 글자 섞인 코드, 모르는 칸(rentalId)을 붙인 요청.
+    // [기대] 모두 400(서비스까지 가지 않음).
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
     @Test
     @DisplayName("코드가 6자리 숫자가 아니거나 모르는 필드가 있으면 400 VALIDATION_FAILED")
     void redeemValidation() throws Exception {
@@ -92,6 +106,9 @@ class BoothCodeApiTest extends WebTestBase {
         verifyNoInteractions(service);
     }
 
+    // [상황] 틀린 코드, 만료·이미 쓴 코드, 틀린 시도가 몰려 막힌 상태.
+    // [기대] 틀림 400 BOOTH_CODE_INVALID, 만료 410, 막힘 429와 42초 뒤 다시(Retry-After).
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음, 410 = 이미 쓰였거나 만료되어 더는 쓸 수 없음, 429 = 요청이 너무 잦아 잠시 막음
     @Test
     @DisplayName("틀린 코드는 400 BOOTH_CODE_INVALID, 만료·사용된 코드는 410, 막히면 429와 Retry-After")
     void redeemErrors() throws Exception {
@@ -107,6 +124,9 @@ class BoothCodeApiTest extends WebTestBase {
                 .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
     }
 
+    // [상황] 찍을 시점이 아직 없는 렌탈에 발급한다.
+    // [기대] 409 CHECKPOINT_ORDER_VIOLATION(출고 시점부터 시작해야 함).
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("찍을 시점이 없는 렌탈에 발급하면 409 CHECKPOINT_ORDER_VIOLATION")
     void issueConflict() throws Exception {

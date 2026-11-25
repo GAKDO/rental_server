@@ -1,3 +1,6 @@
+// 이 파일이 확인하는 것: 렌탈 한 건의 규칙(서버·DB 없이). 시점은 출고 → 수령 → 반납 순서로만 진행하고,
+// 앞 시점이 봉인돼야 다음 시점을 시작한다. 세 시점이 봉인되면 반납 완료, 관리자가 종료하면 끝.
+
 package com.gakdo.trace.rental.rental;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,6 +26,8 @@ import com.gakdo.trace.rental.support.Fixtures;
 
 class RentalDomainTest {
 
+    // [상황] 사용 가능 기기로 렌탈을 만든다.
+    // [기대] 진행 중(OPEN), 시점은 아직 없음.
     @Test
     @DisplayName("ACTIVE 기기로 만든 렌탈은 OPEN이고 시점이 없다")
     void openRental() {
@@ -33,6 +38,9 @@ class RentalDomainTest {
         assertThat(rental.getPublicId()).hasSize(21);
     }
 
+    // [상황] 수리 중·폐기 기기로 렌탈을 만든다.
+    // [기대] 409 DEVICE_NOT_ACTIVE.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("수리 중·폐기 기기로 렌탈을 만들면 409 DEVICE_NOT_ACTIVE")
     void inactiveDeviceRejected() {
@@ -43,6 +51,9 @@ class RentalDomainTest {
         }
     }
 
+    // [상황] 출고 시점 없이 수령 시점을 만든다.
+    // [기대] 409 CHECKPOINT_ORDER_VIOLATION.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("출고 전에 수령 기록을 만들면 거부된다(409 CHECKPOINT_ORDER_VIOLATION)")
     void receiveBeforeOutRejected() {
@@ -51,6 +62,8 @@ class RentalDomainTest {
         assertCode(() -> rental.startCheckpoint(CheckpointType.RET), ErrorCode.CHECKPOINT_ORDER_VIOLATION);
     }
 
+    // [상황] 출고를 시작만 하고 봉인 전에 수령을 시작한다.
+    // [기대] 거부된다.
     @Test
     @DisplayName("출고가 봉인되기 전에는 수령을 시작할 수 없다")
     void receiveBeforeOutSealedRejected() {
@@ -60,6 +73,9 @@ class RentalDomainTest {
         assertCode(() -> rental.startCheckpoint(CheckpointType.RCV), ErrorCode.CHECKPOINT_ORDER_VIOLATION);
     }
 
+    // [상황] 출고를 시작하고, 같은 출고를 또 시작한다.
+    // [기대] 렌탈 시작 시각이 채워지고, 두 번째는 409.
+    //        ※ 응답 코드: 409 = 지금 상태와 맞지 않아 거절(이미 있음·순서 어긋남 등)
     @Test
     @DisplayName("OUT을 시작하면 startedAt이 채워지고, 같은 시점을 또 시작하면 409")
     void outStartsRental() {
@@ -71,6 +87,8 @@ class RentalDomainTest {
         assertCode(() -> rental.startCheckpoint(CheckpointType.OUT), ErrorCode.CHECKPOINT_ORDER_VIOLATION);
     }
 
+    // [상황] 출고·수령·반납을 차례로 봉인하고 렌탈을 종료한다.
+    // [기대] 반납 완료(RETURNED)가 되고, 종료하면 CLOSED.
     @Test
     @DisplayName("세 시점을 순서대로 봉인하면 RETURNED가 되고 종료하면 CLOSED")
     void fullLifecycle() {
@@ -91,6 +109,8 @@ class RentalDomainTest {
         assertCode(rental::close, ErrorCode.RENTAL_NOT_CLOSABLE);
     }
 
+    // [상황] 시점 상태 이벤트가 두 번 오거나 뒤 단계가 먼저 온다.
+    // [기대] 상태는 앞으로만 가고, 같은 이벤트가 두 번 와도 결과가 같다.
     @Test
     @DisplayName("시점 상태는 앞으로만 가고 같은 이벤트가 두 번 와도 결과가 같다")
     void checkpointAdvanceIsIdempotent() {
@@ -107,6 +127,8 @@ class RentalDomainTest {
         assertThat(out.getOccurredAt()).isEqualTo(captured);
     }
 
+    // [상황] "촬영됨" 없이 "봉인됨"이 먼저 온다.
+    // [기대] 시점 발생 시각이 채워진다.
     @Test
     @DisplayName("촬영 이벤트를 건너뛰고 봉인이 먼저 와도 occurredAt이 채워진다")
     void sealedWithoutCaptureSetsOccurredAt() {
@@ -118,6 +140,8 @@ class RentalDomainTest {
         assertThat(CheckpointType.RET.previous()).isEqualTo(CheckpointType.RCV);
     }
 
+    // [상황] 시점을 하나씩 시작하며 "지금 시점"을 본다.
+    // [기대] 시작 전에는 없고, 출고 봉인 뒤 수령을 시작하면 수령이다.
     @Test
     @DisplayName("지금 시점은 시작 전엔 없고, 출고 봉인 뒤 수령을 시작하면 수령이다")
     void currentCheckpointIsLatestStarted() {
@@ -139,6 +163,8 @@ class RentalDomainTest {
         assertThatThrownBy(call).isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.code()).isEqualTo(code));
     }
 
+    // [상황] 등급 이벤트가 B로 오고, 다시 C로 오고, 이상한 값(E)으로 온다.
+    // [기대] 마지막 정상 값(C)을 남기고, A~D가 아닌 값은 무시한다.
     @Test
     @DisplayName("등급 이벤트의 등급을 남기고 다시 오면 마지막 값으로 바꾸며, A~D가 아니면 무시한다")
     void recordGrade() {
@@ -152,6 +178,8 @@ class RentalDomainTest {
         org.assertj.core.api.Assertions.assertThat(out.getGrade()).isEqualTo("A");
     }
 
+    // [상황] 고객 이름·메모를 앞뒤 공백, 빈 값으로 넣고 일부 칸만 고친다.
+    // [기대] 공백은 지우고 빈 값은 비우며, 고치지 않은 칸은 그대로.
     @Test
     @DisplayName("고객 이름·메모는 앞뒤 공백을 지우고 빈 값은 비우며, 고치기에서 생략한 칸은 그대로 둔다")
     void updateDetails() {
@@ -164,5 +192,29 @@ class RentalDomainTest {
         org.assertj.core.api.Assertions.assertThat(rental.getDueAt()).isNull();
         org.assertj.core.api.Assertions.assertThat(rental.getNote()).isEqualTo("메모");
         org.assertj.core.api.Assertions.assertThat(RentalDetails.NONE.isEmpty()).isTrue();
+    }
+
+    // [상황] 반납 예정일을 어제, 오늘, 내일, 비우기, 생략, 이미 저장된 과거 값 그대로로 넣는다.
+    // [기대] 한국 시간 오늘보다 과거면 400, 나머지는 통과(이미 저장된 값을 그대로 두는 건 허용).
+    //        ※ 응답 코드: 400 = 요청 내용이 형식에 맞지 않음
+    @Test
+    @DisplayName("반납 예정일이 한국 시간 오늘보다 과거면 400 VALIDATION_FAILED, 오늘·미래·비우기·생략·이미 저장된 값 그대로는 통과한다")
+    void dueAtNotInPast() {
+        java.time.LocalDate today = java.time.LocalDate.parse("2026-11-13");
+        RentalDetails pastDue = RentalDetails.of(null, java.time.LocalDate.parse("2026-11-06"), null);
+        assertThatThrownBy(() -> pastDue.requireDueNotBefore(today, null))
+                .isInstanceOf(DomainException.class)
+                .extracting(e -> ((DomainException) e).code()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        RentalDetails.of(null, today, null).requireDueNotBefore(today, null);
+        RentalDetails.of(null, today.plusDays(1), null).requireDueNotBefore(today, null);
+        new RentalDetails(null, new RentalDetails.Change<>(null), null).requireDueNotBefore(today, null);
+        new RentalDetails(RentalDetails.Change.text("김고객"), null, null).requireDueNotBefore(today, null);
+        RentalDetails.NONE.requireDueNotBefore(today, null);
+        java.time.LocalDate stored = java.time.LocalDate.parse("2026-11-06");
+        RentalDetails.of(null, stored, null).requireDueNotBefore(today, stored);
+        RentalDetails earlierThanStored = RentalDetails.of(null, stored.minusDays(1), null);
+        assertThatThrownBy(() -> earlierThanStored.requireDueNotBefore(today, stored))
+                .isInstanceOf(DomainException.class);
+        assertThat(RentalDetails.today()).isEqualTo(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
     }
 }
